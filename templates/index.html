@@ -21,37 +21,52 @@
 <header class="top"><a class="brand" href="/"><span class="mark">▰</span>Slides</a><a href="/shares" class="muted">Manage share links</a><form action="/logout" method="post"><input type="hidden" name="csrf" value="{{ session.csrf }}"><button class="outline">Sign out</button></form></header>
 <div class="library-heading"><h1>Slide library</h1><p class="muted">{{ count }} folders · Open a folder to view its files.</p></div>
 <style>
-.library-controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}.library-controls .search{flex:1;min-width:200px;margin:0}.library-sort{display:flex;align-items:center;gap:8px}.library-sort label{margin:0;white-space:nowrap}.library-sort select{padding:12px;border-radius:9px;background:#0b1425;color:var(--text);border:1px solid var(--line);font:inherit;max-width:100%;min-height:44px}.library-sort select:focus-visible{outline:3px solid var(--accent);outline-offset:4px}@media(max-width:600px){.library-controls .search{max-width:none}.library-sort{width:100%}.library-sort select{flex:1;min-width:0}}
+.library-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}.library-controls .search{flex:1;min-width:200px;margin:0;max-width:none}.filter-button{min-height:46px;border:1px solid var(--line);background:#142237;color:var(--muted);display:inline-flex;align-items:center;gap:8px}.filter-button[aria-pressed="true"]{background:#203d40;border-color:var(--accent);color:var(--accent)}.library-sort{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sort-label{font-size:13px;color:var(--muted)}.sort-group{display:inline-flex;padding:4px;gap:3px;background:#0b1425;border:1px solid var(--line);border-radius:12px}.sort-button{white-space:nowrap;min-height:40px;padding:9px 13px;background:transparent;color:var(--muted);font-size:13px;border:1px solid transparent}.sort-button[aria-pressed="true"]{background:#244147;color:var(--accent);border-color:#38605d;box-shadow:0 2px 6px #0003}.sort-button:hover{background:#1c3045;color:var(--text)}@media(max-width:600px){.library-controls .search{flex-basis:100%}.library-sort{width:100%;gap:8px}.sort-label{width:100%}.sort-group{flex:1}.sort-button{flex:1;padding:9px 10px;min-height:44px}}
+@media(max-width:400px){.sort-group{flex-basis:100%}}
+.preference-controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.preference-controls button{min-height:44px}.preference-controls button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}.preference-badge{font-size:12px;color:var(--accent);margin-left:8px}.preference-status{min-height:26px;margin:0 0 8px}.folder-row summary:focus-visible{outline:3px solid var(--accent);outline-offset:-4px}@media(prefers-reduced-motion:reduce){.chevron{transition:none}}
 </style>
 <div class="library-controls">
 <input class="search" id="search" type="search" placeholder="Find a folder…" aria-label="Find a presentation">
-<div class="library-sort"><label for="sort">Sort by</label><select id="sort"><option value="name-asc">Name · A–Z</option><option value="name-desc">Name · Z–A</option><option value="modified-desc">Date modified · Newest first</option><option value="modified-asc">Date modified · Oldest first</option></select></div>
+<button class="filter-button" id="favorites-only" type="button" aria-pressed="false"><span aria-hidden="true">★</span>Favorites only</button>
+<div class="library-sort" role="group" aria-label="Sort presentations"><span class="sort-label">Sort by</span>
+<div class="sort-group" role="group" aria-label="Name"><button class="sort-button" type="button" data-sort="name-asc" aria-pressed="true" aria-label="Name A to Z">Name A–Z</button><button class="sort-button" type="button" data-sort="name-desc" aria-pressed="false" aria-label="Name Z to A">Z–A</button></div>
+<div class="sort-group" role="group" aria-label="Date modified"><button class="sort-button" type="button" data-sort="modified-desc" aria-pressed="false" aria-label="Date modified newest first">Newest</button><button class="sort-button" type="button" data-sort="modified-asc" aria-pressed="false" aria-label="Date modified oldest first">Oldest</button></div></div>
 </div>
+<p id="preference-status" class="muted preference-status" role="status" aria-live="polite"></p>
 <section class="folder-list" aria-label="Presentation folders">
 {% for entry in entries %}
-<details class="folder-row" data-search="{{ (entry.title+' '+entry.description)|lower }}" data-title="{{ entry.title }}" data-modified="{{ entry.updated_iso }}">
-<summary><span class="chevron" aria-hidden="true">›</span><svg class="folder-icon" viewBox="0 0 32 26" fill="none" aria-hidden="true"><path d="M2 5a3 3 0 0 1 3-3h7l3 4h12a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z" fill="currentColor" opacity=".2"/><path d="M2 9V5a3 3 0 0 1 3-3h7l3 4h12a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="1.7"/></svg><div><div class="folder-title">{{ entry.title }}</div><div class="folder-subtitle">{{ entry.description }}</div><div class="folder-updated">Last updated <time datetime="{{ entry.updated_iso }}" title="{{ entry.updated_label }}">{{ entry.updated_label }}</time></div></div><span class="folder-formats">{% for f in entry.files %}{{ f.format }}{% if not loop.last %} · {% endif %}{% endfor %}</span></summary>
+<details class="folder-row" data-search="{{ (entry.title+' '+entry.description)|lower }}" data-title="{{ entry.title }}" data-modified="{{ entry.updated_iso }}" data-favorite="{{ entry.favorite }}" data-pinned="{{ entry.pinned }}">
+<summary><span class="chevron" aria-hidden="true">›</span><svg class="folder-icon" viewBox="0 0 32 26" fill="none" aria-hidden="true"><path d="M2 5a3 3 0 0 1 3-3h7l3 4h12a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z" fill="currentColor" opacity=".2"/><path d="M2 9V5a3 3 0 0 1 3-3h7l3 4h12a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="1.7"/></svg><div><div class="folder-title">{{ entry.title }}<span class="preference-badge" data-badge="favorite" {% if not entry.favorite %}hidden{% endif %}>★ Favorite</span><span class="preference-badge" data-badge="pinned" {% if not entry.pinned %}hidden{% endif %}>Pinned</span></div><div class="folder-subtitle">{{ entry.description }}</div><div class="folder-updated">Last updated <time datetime="{{ entry.updated_iso }}" title="{{ entry.updated_label }}">{{ entry.updated_label }}</time></div></div><span class="folder-formats">{% for f in entry.files %}{{ f.format }}{% if not loop.last %} · {% endif %}{% endfor %}</span></summary>
 <div class="folder-content">
+<div class="preference-controls">
+{% for field, label in [('favorite','Favorite'),('pinned','Pin to top')] %}<button type="button" class="outline" data-preference="{{ field }}" data-url="{{ url_for('deck_preference',name=entry.name) }}" aria-label="{{ label }}: {{ entry.title }}" aria-pressed="{{ 'true' if entry[field] else 'false' }}">{{ label }}</button>{% endfor %}
+</div>
 {% if entry.linked_formats %}<div class="file-row linked-presentation"><span class="file-format">DECK</span><span class="file-name">{{ entry.title }}</span><a class="file-action" href="{{ url_for('viewer',name=entry.name,filename=entry.format_files.html) }}">View HTML →</a><a class="file-action" href="{{ url_for('viewer',name=entry.name,filename=entry.format_files.pptx) }}">View PPTX →</a><a class="file-action" href="{{ url_for('deck',name=entry.name,filename=entry.format_files.pptx) }}" download>Download PPTX ↓</a></div>{% endif %}
 {% for f in entry.files %}{% if not entry.linked_formats or f.name not in [entry.format_files.html,entry.format_files.pptx] %}<div class="file-row"><span class="file-format">{{ f.format }}</span><a class="file-name" href="{{ f.preview_url or f.url }}" {% if f.format=='PDF' %}target="_blank" rel="noopener"{% endif %}>{{ f.name }}</a>{% if f.preview_url %}<a class="file-action" href="{{ f.preview_url }}">View PPTX →</a>{% endif %}<a class="file-action" href="{{ f.url }}" {% if f.format=='PPTX' %}download{% elif f.format=='PDF' %}target="_blank" rel="noopener"{% endif %}>{% if f.format=='HTML' %}Present →{% elif f.format=='PDF' %}View ↗{% else %}Download PPTX ↓{% endif %}</a></div>{% endif %}{% endfor %}
 <form class="share-form" action="/shares" method="post"><input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="deck" value="{{ entry.name }}"><label for="expiry-{{ loop.index }}">Link expires</label><select id="expiry-{{ loop.index }}" name="days" aria-label="Share link expiry"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">No expiry</option></select><button class="outline">Share link ↗</button></form>
 </div></details>{% endfor %}</section>
-<p class="empty" id="empty">No folders match your search.</p>
+<p class="empty" id="empty">No folders match your filters.</p>
 <script>
 document.querySelectorAll('.folder-updated time').forEach(el=>{const date=new Date(el.dateTime);if(!Number.isNaN(date.valueOf()))el.textContent=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(date)});
 const folders=document.querySelector('.folder-list');
 const rows=Array.from(folders.querySelectorAll('.folder-row'));
 const search=document.querySelector('#search');
-const sort=document.querySelector('#sort');
+const sort={value:'name-asc'};
+const sortButtons=Array.from(document.querySelectorAll('[data-sort]'));
+function updateSortButtons(){sortButtons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.sort===sort.value)))}
+const favoritesOnly=document.querySelector('#favorites-only');
+const preferenceStatus=document.querySelector('#preference-status');
 const names=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
 function filterFolders(){
  let visible=0;
- rows.forEach(row=>{row.hidden=!row.dataset.search.includes(search.value.toLowerCase());if(!row.hidden)visible++});
+ rows.forEach(row=>{row.hidden=!row.dataset.search.includes(search.value.toLowerCase())||((favoritesOnly.getAttribute('aria-pressed')==='true')&&row.dataset.favorite!=='1');if(!row.hidden)visible++});
  document.querySelector('#empty').style.display=visible?'none':'block';
 }
 function sortFolders(){
  const mode=sort.value;
  rows.sort((a,b)=>{
+  const byPin=Number(b.dataset.pinned)-Number(a.dataset.pinned);
+  if(byPin)return byPin;
   const byName=names.compare(a.dataset.title,b.dataset.title);
   if(mode.startsWith('modified-')){
    const aTime=Date.parse(a.dataset.modified),bTime=Date.parse(b.dataset.modified);
@@ -63,9 +78,30 @@ function sortFolders(){
  });
  rows.forEach(row=>folders.appendChild(row));
 }
-try{const saved=localStorage.getItem('slides-library-sort');if(Array.from(sort.options).some(option=>option.value===saved))sort.value=saved}catch{}
+try{const saved=localStorage.getItem('slides-library-sort');if(sortButtons.some(button=>button.dataset.sort===saved))sort.value=saved}catch{}
+try{favoritesOnly.setAttribute('aria-pressed',String(localStorage.getItem('slides-library-favorites-only')==='true'))}catch{}
+updateSortButtons();
 sortFolders();filterFolders();
 search.addEventListener('input',filterFolders);
-sort.addEventListener('change',()=>{sortFolders();try{localStorage.setItem('slides-library-sort',sort.value)}catch{}});
+favoritesOnly.addEventListener('click',()=>{favoritesOnly.setAttribute('aria-pressed',String(favoritesOnly.getAttribute('aria-pressed')!=='true'));filterFolders();try{localStorage.setItem('slides-library-favorites-only',String((favoritesOnly.getAttribute('aria-pressed')==='true')))}catch{}});
+document.querySelectorAll('[data-preference]').forEach(button=>button.addEventListener('click',async()=>{
+ const row=button.closest('.folder-row'),field=button.dataset.preference;
+ const value=row.dataset[field]==='1'?'0':'1';
+ button.disabled=true;preferenceStatus.textContent='Saving…';
+ try{
+  const response=await fetch(button.dataset.url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:{{ session.csrf|tojson }},field,value})});
+  if(!response.ok||response.redirected)throw new Error('Save failed');
+  const result=await response.json();
+  if(result[field]!==Boolean(Number(value)))throw new Error('Save failed');
+  row.dataset[field]=value;
+  button.setAttribute('aria-pressed',String(value==='1'));
+  row.querySelector(`[data-badge="${field}"]`).hidden=value!=='1';
+  sortFolders();filterFolders();
+  if(row.hidden)favoritesOnly.focus();
+  preferenceStatus.textContent='Preference saved.';
+ }catch{preferenceStatus.textContent='Could not save your preference. Sign in again if your session expired, then retry.'}
+ finally{button.disabled=false;if(!row.hidden)button.focus()}
+}));
+sortButtons.forEach(button=>button.addEventListener('click',()=>{sort.value=button.dataset.sort;updateSortButtons();sortFolders();try{localStorage.setItem('slides-library-sort',sort.value)}catch{}}));
 </script>
 {% endblock %}

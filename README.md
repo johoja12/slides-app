@@ -6,6 +6,7 @@ A self-hosted, private slide library for HTML, PowerPoint and PDF presentations.
 
 - Searchable, collapsible presentation folders with local-time modification dates.
 - Name and date-modified sorting, remembered in the browser; filtering and expanded folders survive sorting.
+- Persistent favorites, independent pins and a favorites-only library filter, with accessible sort buttons.
 - Linked HTML/PPTX versions, original downloads and cached PowerPoint previews.
 - Desktop/mobile presentation viewers and a slide-navigation drawer for supported canvas decks.
 - Login-protected library with expiring, revocable links scoped to a single presentation.
@@ -47,6 +48,10 @@ Explicit `formats` pair matching HTML/PPTX files; single unambiguous candidates 
 
 Modification dates use the latest deck/supporting-asset modification time, excluding metadata, hidden files and symlinks. Preserve timestamps when copying decks if you want the original dates retained. Sorting supports A–Z, Z–A, newest first and oldest first.
 
+Expand a folder to use **Favorite** or **Pin to top**. Favorites and pins are independent: pins stay above other folders, with the chosen sort applied within each group. **Favorites only** combines with text search. Buttons expose their selected state to assistive technology and support keyboard activation.
+
+Preferences belong to the current single-admin installation and persist across browsers in the state SQLite database; they never modify originals or their dates and are absent from anonymous share responses. Identity follows the folder name: removed folders disappear from the catalog, renamed folders start with no preferences, and reusing a previous name restores its saved preferences. The sort and favorites-only filter are remembered separately in each browser.
+
 ## Share links and privacy
 
 Sign in, select an expiry and create a share link. Anyone holding that token can view files in that presentation folder without login; they cannot browse other folders or the catalog. Revoke a link to disable future requests. Downloaded copies cannot be revoked. Manage share links supports searching, filters, copying and bulk revoke/delete; only expired/revoked records can be deleted.
@@ -65,6 +70,16 @@ docker compose --env-file .env.example config --quiet
 ```
 
 The verification script creates temporary dummy presentations, credentials and databases. It checks authentication, CSRF, throttling, cookies, logout replay, path/symlink rejection, scoped sharing, expiry/revocation, bulk actions, PPTX previews, original downloads, linked formats, share copying and error pages. It never accesses a real deployment.
+
+Optional browser regression checks (synthetic HTTPS server and temporary state only):
+
+```bash
+.venv/bin/pip install playwright
+.venv/bin/playwright install chromium
+.venv/bin/python verify_ui.py
+```
+
+These cover favorites/pins, all sort modes, search, expanded folders, reload persistence, failed saves, keyboard controls and desktop/mobile layout. They require `openssl` and save preview screenshots under `/tmp/slides-library-{desktop,mobile}.png`.
 
 `refresh-thumbnails.py` is an optional local helper for canvas decks exposing the supported `slides`/`go` API. It requires Playwright and a Chromium browser; run `python refresh-thumbnails.py --help` for inputs. It writes derived files locally and checks that the source file has not changed.
 

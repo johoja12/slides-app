@@ -20,7 +20,13 @@ This is the authoritative source checkout for the private slide library. It was 
 - Use existing modification timestamps, not metadata rewrite or upload times, for date sorting. Preserve search filtering and expanded folders when sorting.
 - Changes to copied public/proxy error pages must stay consistent with application errors; proxy examples must not introduce bearer-URL access logs.
 
-## Validation
+## UI and UX
+
+- Use semantic HTML5 with polished, deliberately styled controls that fit the app's visual design. Avoid unstyled browser-default boxes, dropdowns and widgets in user-facing flows.
+- Prefer clear button groups, segmented controls and thoughtfully designed forms. Preserve native semantics, keyboard operation, visible focus, accessible names and selected/pressed states.
+- Design for desktop and mobile with comfortable touch targets, useful empty/loading/error states and reduced-motion support. Verify changed controls in a real browser at both sizes.
+
+## Validation commands
 
 ```bash
 python3 -m venv .venv

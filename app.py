@@ -41,6 +41,7 @@ def db():
                 conn.execute(f'ALTER TABLE shares ADD COLUMN {column} TEXT')
         conn.commit()
     conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS shares_copy_token_idx ON shares(copy_token_hash)')
+    conn.execute('CREATE TABLE IF NOT EXISTS deck_preferences (deck TEXT PRIMARY KEY, favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0,1)), pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)))')
     try:
         yield conn
         conn.commit()
@@ -215,7 +216,27 @@ def catalog():
 @app.get('/')
 def index():
     entries=catalog()
+    with db() as conn:
+        preferences={row[0]:row[1:] for row in conn.execute('SELECT deck,favorite,pinned FROM deck_preferences')}
+    for entry in entries:
+        entry['favorite'],entry['pinned']=preferences.get(entry['name'],(0,0))
     return render_template('index.html', entries=entries, count=len(entries))
+
+
+@app.post('/preferences/<name>')
+def deck_preference(name):
+    require_csrf()
+    if name not in {entry['name'] for entry in catalog()}:
+        abort(404)
+    field=request.form.get('field')
+    value=request.form.get('value')
+    if field not in ('favorite','pinned') or value not in ('0','1'):
+        abort(400)
+    with db() as conn:
+        # The column is allowlisted above; an explicit value makes retries idempotent.
+        conn.execute(f'INSERT INTO deck_preferences (deck,{field}) VALUES (?,?) '
+                     f'ON CONFLICT(deck) DO UPDATE SET {field}=excluded.{field}',(name,int(value)))
+    return {field:bool(int(value))}
 
 
 @app.get('/decks/<name>/')

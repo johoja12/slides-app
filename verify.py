@@ -213,3 +213,37 @@ for path in ['/s/not-a-link','/s/'+('x'*43),'/s/'+('x'*43)+'/', '/s/', '/missing
  check(b'/login?next=' not in r.data)
 check(b'Link unavailable' in unknown.get('/s/not-a-link',base_url=origin).data)
 print(f'{checks} total checks passed, including helpful public error pages')
+
+# Private single-admin preferences persist independently without touching originals.
+preference_url='/preferences/demo'
+original=(root/'demo/index.html').read_bytes()
+modified=mod.deck_modified(root/'demo')
+check(guest.post(preference_url,base_url=origin,data={'field':'favorite','value':'1'}).status_code==302)
+check(c.get(preference_url,base_url=origin).status_code==405)
+check(c.post(preference_url,base_url=origin,data={'field':'favorite','value':'1'}).status_code==400)
+for field,value in [('token','1'),('favorite','yes'),('pinned','2')]:
+ check(c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':field,'value':value}).status_code==400)
+for name in ['missing','.hidden','demo%2Findex.html']:
+ check(c.post('/preferences/'+name,base_url=origin,data={'csrf':csrf,'field':'favorite','value':'1'}).status_code==404)
+for field in ['favorite','pinned','favorite']:
+ response=c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':field,'value':'1'})
+ check(response.status_code==200 and response.json=={field:True})
+with mod.db() as conn:
+ check(conn.execute('SELECT favorite,pinned FROM deck_preferences WHERE deck=?',('demo',)).fetchone()==(1,1))
+check(b'data-favorite="1" data-pinned="1"' in c.get('/',base_url=origin).data)
+check(c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':'favorite','value':'0'}).json=={'favorite':False})
+with mod.db() as conn:
+ check(conn.execute('SELECT favorite,pinned FROM deck_preferences WHERE deck=?',('demo',)).fetchone()==(0,1))
+check((root/'demo/index.html').read_bytes()==original and mod.deck_modified(root/'demo')==modified)
+# Preferences use folder identity; removed folders are hidden and renames start fresh.
+(root/'demo').rename(root/'renamed-demo')
+check(c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':'favorite','value':'1'}).status_code==404)
+check(b'data-favorite="0" data-pinned="0"' in c.get('/',base_url=origin).data)
+(root/'renamed-demo').rename(root/'demo')
+# Anonymous share views never include library preferences or controls.
+share_token=secrets.token_urlsafe(32)
+with mod.db() as conn:
+ conn.execute('INSERT INTO shares(token,deck,created) VALUES (?,?,?)',(mod.token_hash(share_token),'demo',time.time()))
+response=guest.get('/s/'+share_token+'/',base_url=origin,follow_redirects=True)
+check(response.status_code==200 and b'data-preference' not in response.data and b'data-favorite' not in response.data)
+print(f'{checks} total checks passed, including private favorites/pins, persistence, independent updates, CSRF and unchanged originals')
