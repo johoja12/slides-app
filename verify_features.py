@@ -231,3 +231,18 @@ response=c.get('/',base_url=origin)
 check(malicious.encode() not in response.data and b'\\u003c/script\\u003e' in response.data)
 check(b'privateLeakSentinel' not in c.get(asset,base_url=origin).data)
 print(f'{checks} additional feature checks passed, including Vue API authorization, CSRF, private bootstrap isolation and inert metadata encoding')
+
+# Tag management JSON retains authoritative server normalization and current library state.
+check(post('/tags/content',tags='café,straße').status_code==200)
+response=c.post('/tags',base_url=origin,headers=api_headers,data={'csrf':csrf,'action':'rename','tag':'CAFÉ','replacement':'  NEW  Label '})
+check(response.status_code==200 and response.json['tag_change']=={'action':'rename','old':'café','replacement':'new label'})
+check(any(entry['name']=='content' and 'new label' in entry['tags'] for entry in response.json['entries']))
+response=c.post('/tags',base_url=origin,headers=api_headers,data={'csrf':csrf,'action':'rename','tag':'STRASSE','replacement':'Résumé'})
+check(response.status_code==200 and response.json['tag_change']['replacement']=='résumé')
+response=c.post('/tags',base_url=origin,headers=api_headers,data={'csrf':csrf,'action':'delete','tag':'résumé'})
+check(response.status_code==200 and response.json['tag_change']['replacement'] is None)
+print(f'{checks} additional feature checks passed, including normalized tag-management responses')
+
+response=c.post('/tags',base_url=origin,headers=api_headers,data={'csrf':csrf,'action':'rename','tag':'already-removed-tag','replacement':'new-tag'})
+check(response.status_code==409 and 'Refresh' in response.json['error'])
+print(f'{checks} additional feature checks passed, including stale-tag conflict handling')

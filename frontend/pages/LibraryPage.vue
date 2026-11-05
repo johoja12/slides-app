@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import type { LibraryData, SortMode } from "../types";
-import { errorMessage, formData, request, useCsrf } from "../composables/api";
 import { readPreference, writePreference } from "../composables/storage";
 import AppHeader from "../components/AppHeader.vue";
 import DeckRow from "../components/DeckRow.vue";
 import UiButton from "../components/UiButton.vue";
-import UiField from "../components/UiField.vue";
+import TagManager from "../components/TagManager.vue";
 import UiStatus from "../components/UiStatus.vue";
 const props = defineProps<{ data: LibraryData }>();
 const decks = ref(props.data.entries),
   search = ref(""),
-  message = ref(""),
-  csrf = useCsrf();
+  message = ref("");
 const modes: { value: SortMode; label: string; aria: string }[] = [
   { value: "name-asc", label: "Name A–Z", aria: "Name A to Z" },
   { value: "name-desc", label: "Z–A", aria: "Name Z to A" },
@@ -119,28 +117,46 @@ async function preference(
     }
   }
 }
-const oldTag = ref(""),
-  newTag = ref(""),
-  tagBusy = ref(false);
-async function manageTags(action: "rename" | "delete") {
-  if (!oldTag.value.trim() || (action === "rename" && !newTag.value.trim())) {
-    message.value = "Enter the existing tag and its replacement when renaming.";
-    return;
-  }
-  tagBusy.value = true;
-  try {
-    await request(
-      "/tags",
-      formData({ csrf, action, tag: oldTag.value, replacement: newTag.value }),
-    );
-    const data = await request<LibraryData>("/");
-    decks.value = data.entries;
-    message.value = "Tags updated.";
-  } catch (error) {
-    message.value = errorMessage(error);
-  } finally {
-    tagBusy.value = false;
-  }
+const managerOpen = ref(false);
+const showAllTags = ref(false);
+const tagCounts = computed(
+  () =>
+    new Map(
+      allTags.value.map((tag) => [
+        tag,
+        decks.value.filter((deck) => deck.tags.includes(tag)).length,
+      ]),
+    ),
+);
+const popularTags = computed(() =>
+  [...allTags.value]
+    .sort(
+      (a, b) =>
+        (tagCounts.value.get(b) || 0) - (tagCounts.value.get(a) || 0) ||
+        a.localeCompare(b),
+    )
+    .slice(0, 8),
+);
+const displayedTags = computed(() =>
+  showAllTags.value
+    ? allTags.value
+    : [...new Set([...selectedTags.value, ...popularTags.value])],
+);
+function tagsChanged(
+  data: LibraryData,
+  action: "rename" | "delete",
+  old: string,
+  replacement: string,
+) {
+  if (selectedTags.value.includes(old))
+    selectedTags.value = [
+      ...new Set(
+        selectedTags.value.flatMap((tag) =>
+          tag === old ? (action === "rename" ? [replacement] : []) : [tag],
+        ),
+      ),
+    ];
+  decks.value = data.entries;
 }
 </script>
 <template>
@@ -182,38 +198,67 @@ async function manageTags(action: "rename" | "delete") {
       </div>
     </div>
   </div>
-  <div
-    id="tag-filters"
-    class="tag-filter-list"
-    role="group"
-    aria-label="Filter by tags (match all selected tags)"
-  >
-    <UiButton
-      v-for="tag in allTags"
-      :key="tag"
-      class="tag-filter"
-      :data-tag="tag"
-      :aria-pressed="selectedTags.includes(tag)"
-      @click="toggleTag(tag)"
-      >{{ tag }}</UiButton
-    >
-  </div>
-  <details class="tag-management">
-    <summary>Manage tags</summary>
-    <form class="card compact-card" @submit.prevent="manageTags('rename')">
-      <UiField id="old-tag" label="Existing tag"
-        ><input id="old-tag" v-model="oldTag" required /></UiField
-      ><UiField id="new-tag" label="New name (for rename)"
-        ><input id="new-tag" v-model="newTag"
-      /></UiField>
-      <div class="actions">
-        <UiButton type="submit" :busy="tagBusy">Rename everywhere</UiButton
-        ><UiButton :busy="tagBusy" @click="manageTags('delete')"
-          >Remove everywhere</UiButton
+  <section class="library-tags" aria-label="Presentation tags">
+    <div class="tag-toolbar">
+      <div>
+        <span class="tag-toolbar-label">Tags</span
+        ><span v-if="selectedTags.length" class="muted"
+          >{{ selectedTags.length }} selected · match all</span
         >
       </div>
-    </form>
-  </details>
+      <div class="tag-toolbar-actions">
+        <UiButton
+          v-if="selectedTags.length"
+          id="clear-tag-filters"
+          @click="selectedTags = []"
+          >Clear filters</UiButton
+        ><UiButton
+          id="manage-tags"
+          aria-label="Manage tags"
+          @click="managerOpen = true"
+          >Manage tags<span class="tag-count">{{
+            allTags.length
+          }}</span></UiButton
+        >
+      </div>
+    </div>
+    <div
+      v-if="allTags.length"
+      id="tag-filters"
+      class="tag-filter-list"
+      role="group"
+      aria-label="Filter by tags (match all selected tags)"
+    >
+      <UiButton
+        v-for="tag in displayedTags"
+        :key="tag"
+        class="tag-filter"
+        :data-tag="tag"
+        :aria-label="`Filter by ${tag}: ${tagCounts.get(tag)} presentations`"
+        :aria-pressed="selectedTags.includes(tag)"
+        @click="toggleTag(tag)"
+        >{{ tag
+        }}<span class="tag-count">{{ tagCounts.get(tag) }}</span></UiButton
+      ><UiButton
+        v-if="allTags.length > 8"
+        class="tag-show-more"
+        :aria-expanded="showAllTags"
+        @click="showAllTags = !showAllTags"
+        >{{
+          showAllTags ? "Show fewer" : `Show all ${allTags.length}`
+        }}</UiButton
+      >
+    </div>
+    <p v-else class="muted tag-empty-hint">
+      Add tags inside a presentation to organize your library.
+    </p>
+  </section>
+  <TagManager
+    v-model:open="managerOpen"
+    :decks="decks"
+    @changed="tagsChanged"
+    @refreshed="(data) => (decks = data.entries)"
+  />
   <UiStatus id="preference-status">{{ message }}</UiStatus>
   <section class="folder-list" aria-label="Presentation folders">
     <DeckRow

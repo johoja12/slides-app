@@ -852,3 +852,145 @@ td .row-action {
     animation: none !important;
   }
 }
+
+/* Tag browsing and management use separate, explicit controls. */
+.library-tags {
+  margin: 10px 0 18px;
+}
+.tag-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.tag-toolbar > div,
+.tag-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tag-toolbar-label {
+  font-weight: 650;
+}
+.tag-toolbar .muted {
+  font-size: 12px;
+}
+.tag-count {
+  font-size: 11px;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  background: #ffffff0c;
+  color: var(--muted);
+}
+.tag-filter[aria-pressed="true"] .tag-count {
+  color: var(--accent);
+}
+.tag-empty-hint {
+  font-size: 13px;
+  margin: 0;
+}
+.tag-manager-intro {
+  margin-top: 0;
+  font-size: 14px;
+}
+.tag-manager-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.tag-manager-row {
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.tag-manager-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+.tag-manager-summary > div:first-child {
+  min-width: 0;
+}
+.tag-manager-summary strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.tag-use-count {
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+.tag-manager-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tag-manager-actions .ui-button {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.tag-manager-edit {
+  background: #0c192a;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 14px;
+}
+.tag-manager-edit h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.tag-manager-edit .ui-field {
+  margin-top: 0;
+}
+.tag-action-explanation,
+.affected-decks {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.affected-decks {
+  max-height: 90px;
+  overflow: auto;
+}
+.tag-empty {
+  padding: 18px 0;
+}
+@media (max-width: 420px) {
+  .tag-manager-summary {
+    align-items: start;
+    flex-wrap: wrap;
+  }
+  .tag-manager-actions {
+    width: 100%;
+  }
+  .tag-manager-actions .ui-button {
+    flex: 1;
+  }
+  .tag-toolbar-actions {
+    width: 100%;
+  }
+  .tag-toolbar-actions .ui-button {
+    flex: 1;
+  }
+}
+
+.tag-manager-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.tag-manager-search input {
+  flex: 1;
+}
+
+.tag-manager-list {
+  max-height: min(52dvh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}

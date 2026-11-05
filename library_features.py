@@ -90,10 +90,14 @@ def register(namespace):
         new = normalize_tag(request.form.get('replacement', '')) if action == 'rename' else None
         with h.db() as conn:
             conn.execute('BEGIN IMMEDIATE')
+            if not conn.execute('SELECT 1 FROM deck_tags WHERE tag=?',(old,)).fetchone():
+                abort(409, description='This tag was changed or removed elsewhere. Refresh the tag list and try again.')
             if new:
                 conn.execute('INSERT OR IGNORE INTO deck_tags(deck,tag) SELECT deck,? FROM deck_tags WHERE tag=?', (new, old))
             if old != new:
                 conn.execute('DELETE FROM deck_tags WHERE tag=?', (old,))
+        if request.accept_mimetypes.best == 'application/json':
+            return {**h.index(), 'tag_change': {'action': action, 'old': old, 'replacement': new}}
         return redirect('/')
 
     def thumb(name, filename):
