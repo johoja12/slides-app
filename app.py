@@ -11,13 +11,15 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
-from flask import Response, Flask, abort, redirect, render_template, request, send_file, session, url_for
+from flask import Response, Flask, abort, redirect, render_template, request, send_file, session, url_for, g
 from werkzeug.security import check_password_hash
 import pptx_preview
+import library_store
 
 ROOT = Path(os.environ.get('SLIDES_ROOT', '/library')).resolve()
 CONFIG = json.loads(Path(os.environ.get('SLIDES_CONFIG', '/secrets/auth.json')).read_text())
 DB = os.environ.get('SLIDES_DB', '/state/auth.sqlite3')
+STATE = Path(os.environ.get('SLIDES_STATE', str(Path(DB).parent))).resolve()
 PUBLIC_ORIGIN = os.environ.get('PUBLIC_ORIGIN', 'https://localhost:8447').rstrip('/')
 app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
 app.config.update(SECRET_KEY=CONFIG['session_secret'], SESSION_COOKIE_NAME='__Host-slides',
@@ -42,6 +44,7 @@ def db():
         conn.commit()
     conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS shares_copy_token_idx ON shares(copy_token_hash)')
     conn.execute('CREATE TABLE IF NOT EXISTS deck_preferences (deck TEXT PRIMARY KEY, favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0,1)), pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)))')
+    library_store.schema(conn)
     try:
         yield conn
         conn.commit()
@@ -74,12 +77,20 @@ def logged_in():
 
 @app.before_request
 def protect():
+    request.max_content_length=105*1024*1024 if request.endpoint=='upload' else 160000 if request.endpoint=='presenter' else 16384
+    g.revision = None
+    g.revision_deck = None
     if request.routing_exception is not None and request.routing_exception.code==404:
         return
-    if request.endpoint in ('login','health','shared','shared_file','slide_navigation','shared_pptx','shared_pptx_data','shared_viewer'):
+    if request.endpoint in ('login','health','shared','shared_file','slide_navigation','presentation_channel','shared_pptx','shared_pptx_data','shared_viewer','shared_thumbnail'):
         return
     if not logged_in():
         return redirect(url_for('login', next=safe_next(request.full_path.rstrip('?'))))
+    revision=(request.view_args or {}).get('revision')
+    if revision is not None:
+        name=(request.view_args or {}).get('name')
+        revision_folder(name,revision)
+        g.revision,g.revision_deck=revision,name
 
 
 @app.after_request
@@ -145,21 +156,51 @@ def logout():
     return redirect('/login')
 
 
+def revision_folder(name, revision):
+    with db() as conn:
+        row=conn.execute('SELECT 1 FROM revisions r JOIN decks d ON d.id=r.deck_id WHERE r.id=? AND d.name=?',(revision,name)).fetchone()
+    folder=STATE/'revisions'/str(revision)
+    if not row or not folder.is_dir() or folder.is_symlink():
+        abort(404)
+    return folder
+
+
+def deck_folder(name):
+    if not name or '/' in name or '\\' in name or name.startswith('.'):
+        abort(404)
+    if getattr(g,'revision_deck',None)==name and g.revision is not None:
+        return revision_folder(name,g.revision)
+    with db() as conn:
+        row=conn.execute('SELECT current_revision FROM decks WHERE name=?',(name,)).fetchone()
+    if row and row[0] is not None:
+        return revision_folder(name,row[0])
+    folder=ROOT/name
+    if folder.is_symlink() or not folder.is_dir():
+        abort(404)
+    return folder
+
+
 def safe_file(relative):
-    candidate = ROOT / relative
     try:
-        parts = candidate.relative_to(ROOT).parts
-        if not parts or any(p.startswith('.') for p in parts):
+        name, *rest=relative.split('/')
+        if any(not part or part.startswith('.') or '\\' in part for part in [name]+rest):
             abort(404)
-        current = ROOT
-        for part in parts:
-            current = current / part
-            if current.is_symlink():
+        root=deck_folder(name)
+        candidate=root
+        for part in rest:
+            candidate=candidate/part
+            if candidate.is_symlink():
                 abort(404)
-        candidate.resolve().relative_to(ROOT)
+        candidate.resolve().relative_to(root.resolve())
     except ValueError:
         abort(404)
     return candidate
+
+
+@app.url_defaults
+def revision_urls(endpoint, values):
+    if endpoint in ('deck','deck_index','viewer','pptx_player','pptx_data','thumbnail','presenter') and getattr(g,'revision',None) is not None and values.get('name')==g.revision_deck:
+        values.setdefault('revision',g.revision)
 
 
 
@@ -179,24 +220,30 @@ def deck_modified(folder):
 
 def catalog():
     entries=[]
-    for folder in sorted(ROOT.iterdir()):
-        if not folder.is_dir() or folder.is_symlink() or folder.name.startswith('.'):
-            continue
+    names={p.name for p in ROOT.iterdir() if p.is_dir() and not p.is_symlink() and not p.name.startswith('.')}
+    with db() as conn:
+        names.update(row[0] for row in conn.execute('SELECT name FROM decks WHERE current_revision IS NOT NULL'))
+    for name in sorted(names):
+        folder=deck_folder(name)
         meta={}
         metadata=folder/'metadata.json'
         if metadata.is_file() and not metadata.is_symlink():
             try: meta=json.loads(metadata.read_text())
             except (ValueError,OSError): pass
+        if not isinstance(meta,dict):meta={}
+        for field in ('title','description'):
+            if not isinstance(meta.get(field,''),str):meta.pop(field,None)
         files=[]
         for path in sorted(folder.iterdir(), key=lambda p: ({'.html':0,'.pdf':1,'.pptx':2}.get(p.suffix.lower(),3),p.name)):
-            if path.is_file() and not path.is_symlink() and path.suffix.lower() in ['.html','.pptx','.pdf']:
+            if not path.name.startswith('.') and path.is_file() and not path.is_symlink() and path.suffix.lower() in ['.html','.pptx','.pdf']:
                 files.append({'name':path.name,'format':path.suffix[1:].upper(),
-                    'url':url_for('deck',name=folder.name,filename=path.name),
-                    'preview_url':url_for('viewer',name=folder.name,filename=path.name) if path.suffix.lower()=='.pptx' else None,
+                    'url':url_for('deck',name=name,filename=path.name),
+                    'preview_url':url_for('viewer',name=name,filename=path.name) if path.suffix.lower()=='.pptx' else None,
                     'size':round(path.stat().st_size/1024)})
         if files:
             format_files={}
             configured=meta.get('formats',{})
+            if not isinstance(configured,dict):configured={}
             for kind in ('html','pptx','pdf'):
                 candidates=[f['name'] for f in files if f['format']==kind.upper()]
                 selected=configured.get(kind)
@@ -205,7 +252,7 @@ def catalog():
                 elif selected is None and len(candidates)==1:
                     format_files[kind]=candidates[0]
             updated=deck_modified(folder)
-            entries.append({'name':folder.name,'title':meta.get('title',folder.name.replace('-',' ').title()),
+            entries.append({'name':name,'title':meta.get('title',name.replace('-',' ').title()),
                 'description':meta.get('description',''),'files':files,'format_files':format_files,
                 'linked_formats':bool(format_files.get('html') and format_files.get('pptx')),
                 'updated_iso':updated.isoformat().replace('+00:00','Z'),
@@ -220,7 +267,8 @@ def index():
         preferences={row[0]:row[1:] for row in conn.execute('SELECT deck,favorite,pinned FROM deck_preferences')}
     for entry in entries:
         entry['favorite'],entry['pinned']=preferences.get(entry['name'],(0,0))
-    return render_template('index.html', entries=entries, count=len(entries))
+    all_tags=enrich_index(entries)
+    return render_template('index.html', entries=entries, count=len(entries),all_tags=all_tags)
 
 
 @app.post('/preferences/<name>')
@@ -240,12 +288,14 @@ def deck_preference(name):
 
 
 @app.get('/decks/<name>/')
-def deck_index(name):
+@app.get('/r/<int:revision>/decks/<name>/')
+def deck_index(name,revision=None):
     return deck(name,'index.html')
 
 
 @app.get('/decks/<name>/<path:filename>')
-def deck(name,filename):
+@app.get('/r/<int:revision>/decks/<name>/<path:filename>')
+def deck(name,filename,revision=None):
     if '/' in name or name in ('.','..'):
         abort(404)
     path=safe_file(name+'/'+filename)
@@ -269,13 +319,14 @@ def require_csrf():
 def share_rows():
     titles={e['name']:e['title'] for e in catalog()}
     with db() as conn:
-        rows=conn.execute('SELECT id,deck,created,expires,revoked FROM shares ORDER BY id DESC').fetchall()
+        rows=conn.execute('SELECT s.id,s.deck,s.created,s.expires,s.revoked,s.revision_id,COALESCE(a.views,0),a.last_opened FROM shares s LEFT JOIN share_activity a ON a.share_id=s.id ORDER BY s.id DESC').fetchall()
     now=time.time()
     return [{'id':r[0],'deck':r[1],'title':titles.get(r[1],r[1].replace('-',' ').title()),
         'created':time.strftime('%Y-%m-%d %H:%M UTC',time.gmtime(r[2])),
         'created_iso':datetime.fromtimestamp(r[2],timezone.utc).isoformat(),
         'expires_iso':datetime.fromtimestamp(r[3],timezone.utc).isoformat() if r[3] else '',
         'expires':time.strftime('%Y-%m-%d %H:%M UTC',time.gmtime(r[3])) if r[3] else 'No expiry',
+        'revision':r[5], 'views':r[6], 'last_opened':datetime.fromtimestamp(r[7],timezone.utc).isoformat() if r[7] else '',
         'active':not r[4] and (not r[3] or r[3]>now),
         'status':'Revoked' if r[4] else 'Expired' if r[3] and r[3]<=now else 'Active'} for r in rows]
 
@@ -291,11 +342,16 @@ def shares():
         days=request.form.get('days','7')
         if days not in ('1','7','30','0'):
             abort(400)
+        revision_id=None
+        behavior=request.form.get('version','latest')
+        if behavior not in ('latest','fixed'):abort(400)
+        if behavior=='fixed':
+            revision_id=checkpoint(name,select=False,source_revision=request.form.get('revision') or None)
         now=time.time()
         seed=token_hash(secrets.token_urlsafe(32))
         with db() as conn:
-            result=conn.execute('INSERT INTO shares (token,deck,created,expires,copy_seed) VALUES (?,?,?,?,?)',
-                (seed,name,now,now+int(days)*86400 if days!='0' else None,seed))
+            result=conn.execute('INSERT INTO shares (token,deck,created,expires,copy_seed,revision_id) VALUES (?,?,?,?,?,?)',
+                (seed,name,now,now+int(days)*86400 if days!='0' else None,seed,revision_id))
             token=reusable_share_token(result.lastrowid,seed)
             conn.execute('UPDATE shares SET token=?,copy_token_hash=? WHERE id=?',
                 (token_hash(token),token_hash(token),result.lastrowid))
@@ -317,12 +373,15 @@ def resolve_share(token):
     if len(token)!=43 or any(c not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_' for c in token):
         abort(404)
     with db() as conn:
-        row=conn.execute('SELECT deck FROM shares WHERE (token=? OR copy_token_hash=?) AND revoked=0 AND (expires IS NULL OR expires>?)',
+        row=conn.execute('SELECT deck,revision_id,id FROM shares WHERE (token=? OR copy_token_hash=?) AND revoked=0 AND (expires IS NULL OR expires>?)',
             (token_hash(token),token_hash(token),time.time())).fetchone()
     if not row:
         abort(404)
     # Deck names come from authenticated creation, still validate on every access.
     name=row[0]
+    g.revision_deck=name
+    g.revision=row[1]
+    g.share_id=row[2]
     folder=safe_file(name)
     if not folder.is_dir():
         abort(404)
@@ -332,6 +391,7 @@ def resolve_share(token):
 @app.get('/s/<token>/', strict_slashes=False)
 def shared(token):
     name=resolve_share(token)
+    observe_share(g.share_id)
     entry=next((e for e in catalog() if e['name']==name),None)
     if not entry:
         abort(404)
@@ -360,7 +420,8 @@ def shared_file(token,filename):
 
 
 @app.get('/view/<name>/<path:filename>')
-def viewer(name,filename):
+@app.get('/r/<int:revision>/view/<name>/<path:filename>')
+def viewer(name,filename,revision=None):
     path=safe_file(name+'/'+filename)
     if not path.is_file() or path.suffix.lower() not in ('.html','.pptx'):
         abort(404)
@@ -393,10 +454,17 @@ def bulk_shares():
             # Remove inactive history only; active links must first be revoked.
             if any(not r[1] and (r[2] is None or r[2]>now) for r in rows):
                 abort(409,description='Revoke active links before deleting them.')
+            conn.execute(f'DELETE FROM share_activity WHERE share_id IN ({slots})',ids)
+            conn.execute(f'DELETE FROM share_visits WHERE share_id IN ({slots})',ids)
             count=conn.execute(f'DELETE FROM shares WHERE id IN ({slots})',ids).rowcount
         else:
             count=conn.execute(f'UPDATE shares SET revoked=1 WHERE id IN ({slots}) AND revoked=0 AND (expires IS NULL OR expires>?)',ids+[now]).rowcount
     return redirect(url_for('shares',done=action,count=count))
+
+
+@app.get('/assets/presentation-channel.js')
+def presentation_channel():
+    return send_file(Path(__file__).parent/'static/presentation-channel.js',mimetype='application/javascript')
 
 
 @app.get('/assets/slide-navigation.js')
@@ -423,6 +491,8 @@ def presentation_file(path):
             html=html.rsplit('</body>',1)[0]+script+'</body>'+html.rsplit('</body>',1)[1]
         else:
             html+=script
+    if 'const slides = []' in html and 'function go(' in html and 'function fit(' in html:
+        html+='<script src="'+url_for('presentation_channel')+'"></script>'
     return Response(html,mimetype='text/html')
 
 
@@ -447,7 +517,8 @@ def pptx_page(name,filename,token=None):
 
 
 @app.get('/pptx/<name>/<path:filename>')
-def pptx_player(name,filename):
+@app.get('/r/<int:revision>/pptx/<name>/<path:filename>')
+def pptx_player(name,filename,revision=None):
     return pptx_page(name,filename)
 
 
@@ -477,7 +548,8 @@ def pptx_asset(name,filename,asset):
 
 
 @app.get('/pptx-data/<name>/<path:filename>/<asset>')
-def pptx_data(name,filename,asset):
+@app.get('/r/<int:revision>/pptx-data/<name>/<path:filename>/<asset>')
+def pptx_data(name,filename,asset,revision=None):
     return pptx_asset(name,filename,asset)
 
 
@@ -502,7 +574,7 @@ def deck_view(entry,filename,token=None):
         source=url_for('shared_pptx',token=token,filename=filename,embedded='1') if filename.lower().endswith('.pptx') else url_for('shared_file',token=token,filename=filename,embedded='1')
     else:
         source=url_for('pptx_player',name=name,filename=filename) if filename.lower().endswith('.pptx') else url_for('deck',name=name,filename=filename,embedded='1')
-    return render_template('viewer.html',title=entry['title'],source=source,formats=linked_formats(entry,filename,token),active_format='pptx' if filename.lower().endswith('.pptx') else 'html',shared=bool(token))
+    return render_template('viewer.html',name=name,filename=filename,revision=getattr(g,'revision',None),title=entry['title'],source=source,formats=linked_formats(entry,filename,token),active_format='pptx' if filename.lower().endswith('.pptx') else 'html',shared=bool(token))
 
 
 @app.get('/s/<token>/_view/<path:filename>')
@@ -542,6 +614,10 @@ def copy_share(share_id):
 @app.errorhandler(400)
 @app.errorhandler(403)
 @app.errorhandler(404)
+@app.errorhandler(409)
+@app.errorhandler(413)
+@app.errorhandler(422)
+@app.errorhandler(429)
 @app.errorhandler(410)
 @app.errorhandler(500)
 @app.errorhandler(502)
@@ -557,6 +633,10 @@ def friendly_error(error):
         heading='Link unavailable'
         message='This link may be incorrect, expired, or no longer shared.'
         detail='Check the address, or ask the person who sent it for a new link.'
+    elif code in (409,422,413):
+        heading='Version changed' if code==409 else 'Check this presentation' if code==422 else 'Upload too large'
+        message=error.description if code!=413 else 'Uploads are limited to 100 MB.'
+        detail='Return to the library, reload and try again.'
     elif code==403:
         heading='Unable to open this page'
         message='You do not have access to this page.'
@@ -570,3 +650,8 @@ def friendly_error(error):
         message='This page may have moved, or the address may be incorrect.'
         detail='Check the address, or return to the slide library.'
     return render_template('error.html',heading=heading,message=message,detail=detail,error_code=code),code
+
+
+# Feature routes are registered after core helpers to keep storage and authorization shared.
+import library_features
+library_features.register(globals())

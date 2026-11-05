@@ -86,3 +86,43 @@ These cover favorites/pins, all sort modes, search, expanded folders, reload per
 ## Development
 
 Read `AGENTS.md`. Keep application changes in this repository and runtime configuration outside it. Feature follow-ups and acceptance criteria live in GitHub issues; see [ROADMAP.md](ROADMAP.md).
+
+## Tags, previews and search
+
+Expand a folder to edit private comma-separated tags. Tags use Unicode normalization, case folding and collapsed whitespace; each deck supports up to 20 tags of 48 characters. Selected tag filters use **AND** matching and combine with folder search, favorites and sorting. Manage tags renames/merges or removes a tag everywhere. Tag identity follows the stable folder URL name; removed decks disappear from filters, retained preferences return if that name is reused, and unused tags disappear automatically. These preferences never enter shared-deck responses.
+
+Opening previews load only near the viewport. HTML uses a static text card without executing scripts; supported canvas decks can use source-hash-verified helper PNGs. Custom/canvas decks without those assets have an explicit fallback. PPTX reuses the conversion cache, and PDF renders only its first page with Poppler. Every request checks login or its deck-scoped share grant, including fixed revision, expiry and revocation. Source changes invalidate derived previews. No server-side browser or arbitrary HTML execution is used.
+
+**Search slide content** indexes only top-level served HTML/PPTX/PDF presentation files from each selected current revision. HTML scripts, hidden elements and note/presenter elements are excluded; PPTX reads slide XML without macros or notes; PDF uses `pdftotext`. App presenter notes, hidden files, credentials and unrelated assets are never indexed. Searches match any query word, use FTS relevance ranking, show plain-text snippets and slide/page pointers, and paginate 20 results per page. Favorites and all selected tags narrow results. HTML has a document pointer; custom canvas text built only by JavaScript cannot be extracted statically. Changed/deleted files and selected revisions invalidate old results. Work is incremental within a request budget; a large or uncached library may ask you to search again while indexing continues. Corrupt/oversized files are skipped without revealing paths or parser errors. The index stays inside the private state database.
+
+## Version history and uploads
+
+The migration is additive: old folders stay read-only and existing links keep their token hashes, copy secrets, expiration and revocation. A deck receives a stable internal UUID when its first snapshot is saved. New immutable revisions copy visible regular files into `state/revisions/<revision-id>/`; paired HTML/PPTX/PDF filenames, original bytes, file timestamps and a content digest are retained. Hidden files and symlinks are excluded. Nothing retroactively recovers a folder revision that was overwritten before it was snapshotted.
+
+**Version history** lets you capture the current folder, inspect/download prior files and select a current revision without overwriting originals. A live-folder option remains for legacy decks. Selecting a revision checks the previously displayed current version to prevent stale concurrent restores. Historical URLs carry the revision in their path, preserving relative-asset scope. External filesystem edits to a live folder are visible on refresh; save a snapshot before replacing originals outside the app. Deck URL names remain stable across uploads/restores; a filesystem rename creates a different identity.
+
+New share links explicitly choose **Follow latest** (the selected current revision or live folder) or **Fixed snapshot**. Creating a fixed link snapshots the current files, or pins the historical revision being viewed. Old links behave as Follow latest. All assets, thumbnails, previews and original downloads stay within that grant's revision. A revision missing a paired format never borrows that format from another revision. Snapshots are retained until an operator deliberately archives/removes them outside the application; there is no destructive revision-delete flow.
+
+**Upload** accepts drag-and-drop or a file picker for HTML bundles (ZIP), PPTX and PDF. New deck names never overwrite existing ones. Choose an existing deck under **New revision** to publish a replacement; its previous live contents are snapshotted first. New content is fully validated in a bounded `state/ingestion/` staging directory and atomically published into revision storage before the database selects it. The library mount remains read-only. Concurrent publishing is serialized, and a stale expected revision is rejected. An interrupted upload leaves the selected revision intact; after a lost success response check history before retrying. A failed transaction can leave an unreferenced revision directory, which is never served or reused as a valid revision; retain it until an operator reviews storage.
+
+Limits: 100 MB uploaded, 300 MB expanded, 1,500 bundle files, 50 selected files, 100 MB per file, UTF-8 HTML up to 8 MB. ZIP paths reject traversal, hidden files, symlinks, special files, encryption and duplicate names. PPTX rejects macros, embedded objects and external resource relationships. File signatures and HTML resource paths are validated without running presentation code. HTML may intentionally reference public HTTP(S) resources at viewing time. ZIP entry modification dates and browser-provided source file dates are retained when available; metadata creation does not change date sorting. Top-level pairing is automatic for one file per format; ambiguous formats require exact filename choices. The app authors pairing metadata instead of trusting bundle metadata.
+
+## Share activity and presenter tools
+
+Authenticated share management shows observed visits and last-opened local time. A visit is a GET to the share's entry URL, deduplicated per browser/share for 30 minutes. Assets, thumbnails, direct file URLs, HEAD/prefetch requests and detected bots do not add visits. Cookie deletion, blocking or unrecognized bots can affect counts: these are observed requests, not verified people or proof of reading. Only internal share IDs, totals, timestamps and short-lived hashed random visitor identifiers are stored. No IP, raw token, bearer URL or user agent is persisted. Deduplication rows expire after 30 minutes and are pruned on eligible opens; aggregate totals remain until **Reset activity** or inactive share-history deletion. Existing proxy bearer-route log suppression is unchanged.
+
+**Presenter tools** opens a private authenticated window with current/next preview, elapsed timer and separately stored notes (one line per slide). Supported formats are the existing canvas `slides`/`go` adapter and PPTX previews. Custom HTML without that API displays a limitation and keeps its own controls; PDF uses its native viewer. Only position/count messages travel over a random per-presentation browser channel; notes never travel to audience windows, anonymous responses, search or thumbnails. These app notes are separate from any notes already embedded in an original file: sharing/downloading an original always shares its original contents.
+
+The presenter can open/reconnect the audience, use arrow/Page keys, reset the timer and request fullscreen. The audience is clean while presenter tools are open. Reloads preserve the channel, notes and local timer; heartbeats detect disconnection. Popup blocking gives an explicit retry message. Mobile uses stacked previews and touch buttons; devices without multi-window channel support can use ordinary audience navigation. Private notes require login on every load/save and CSRF on save; no anonymous presenter endpoint exists.
+
+Additional verification:
+
+```bash
+.venv/bin/python verify_features.py
+# Real converters with no network and temporary synthetic presentations:
+docker run --rm --network none --read-only --memory 1g --cpus 2 \
+  --tmpfs /tmp:rw,size=768m -v "$PWD:/app:ro" -w /app \
+  local/slides-library:1 python verify_rendering.py
+```
+
+The application image and read-only mounts include `library_store.py`, `library_features.py` and `slide_content.py`. When upgrading an existing Compose installation, add these module mounts from the example (or rebuild the image) and recreate only the library service. Preserve the installation's origin/trusted hosts, state, secrets, presentation and Caddy mounts. Back up the SQLite database and existing source before deploying additive migrations; do not reset runtime state.

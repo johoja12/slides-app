@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-imp
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py pptx_preview.py .
+COPY app.py pptx_preview.py library_store.py library_features.py slide_content.py .
 COPY templates templates
 COPY static static
 USER 1024:100

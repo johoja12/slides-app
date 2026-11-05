@@ -19,12 +19,12 @@ PENDING=set()
 MUTEX=threading.Lock()
 
 @lru_cache(maxsize=256)
-def _digest(path,mtime,size,inode):
+def _digest(path,mtime,size,inode,ctime):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 def cache_dir(path):
     stat=path.stat()
-    digest=_digest(str(path),stat.st_mtime_ns,stat.st_size,stat.st_ino)
+    digest=_digest(str(path),stat.st_mtime_ns,stat.st_size,stat.st_ino,stat.st_ctime_ns)
     return CACHE/('v1-'+digest)
 
 def _save(path,value):

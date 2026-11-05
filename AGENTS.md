@@ -31,8 +31,9 @@ This is the authoritative source checkout for the private slide library. It was 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python verify.py
-.venv/bin/python -m py_compile app.py pptx_preview.py set-password.py refresh-thumbnails.py
+.venv/bin/python verify_features.py
+.venv/bin/python verify_ui.py
+.venv/bin/python -m py_compile app.py pptx_preview.py library_store.py library_features.py slide_content.py set-password.py refresh-thumbnails.py
 # Validate Compose without printing any resolved secrets:
 docker compose --env-file .env.example config --quiet
 ```

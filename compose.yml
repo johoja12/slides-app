@@ -36,6 +36,9 @@ services:
     volumes:
       - ./app.py:/app/app.py:ro
       - ./pptx_preview.py:/app/pptx_preview.py:ro
+      - ./library_store.py:/app/library_store.py:ro
+      - ./library_features.py:/app/library_features.py:ro
+      - ./slide_content.py:/app/slide_content.py:ro
       - ./templates:/app/templates:ro
       - ./static:/app/static:ro
       - ./library:/library:ro

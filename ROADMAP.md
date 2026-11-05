@@ -1,6 +1,6 @@
 # Roadmap
 
-These features are follow-up work, not part of the source migration. GitHub issues hold implementation scope and acceptance criteria.
+The roadmap is implemented. GitHub issues hold the original acceptance criteria; README.md documents supported formats, limits and behavior. Favorites shipped first; the remaining features share additive state storage and immutable revisions.
 
 | Order | Feature | Goal |
 |---|---|---|
