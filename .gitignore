@@ -1,0 +1,25 @@
+# Local agent configuration
+.claude/
+# Runtime data and credentials
+.env
+.env.*
+!.env.example
+secrets/
+state/
+library/
+caddy-data/
+caddy-config/
+backups/
+source-manifest.json
+LOGIN.txt
+auth.json
+*.sqlite*
+*.db
+# Python/tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+playwright-report/
+test-results/

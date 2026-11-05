@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!requirements.txt
+!app.py
+!templates
+!templates/**
+
+!static
+!static/**
+
+!pptx_preview.py

@@ -1,0 +1,15 @@
+{
+    admin off
+    auto_https disable_redirects
+    default_sni {$SLIDES_HOST}
+    log {
+        exclude http.log.error
+    }
+}
+https://{$SLIDES_HOST}:8447 {
+    tls internal
+    encode zstd gzip
+    reverse_proxy library:8000 {
+        header_up X-Real-IP {remote_host}
+    }
+}

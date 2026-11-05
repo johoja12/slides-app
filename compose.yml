@@ -1,0 +1,60 @@
+name: slides
+services:
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    container_name: slides-caddy
+    restart: unless-stopped
+    ports:
+      - "${SLIDES_BIND_IP:-127.0.0.1}:${SLIDES_PORT:-8447}:8447"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+    environment:
+      SLIDES_HOST: ${SLIDES_HOST:-localhost}
+    depends_on:
+      library:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    tmpfs: [/tmp]
+    networks: [slides]
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+  library:
+    build: .
+    image: local/slides-library:1
+    container_name: slides-library
+    restart: unless-stopped
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://localhost:8447}
+      SLIDES_TRUSTED_HOSTS: ${SLIDES_TRUSTED_HOSTS:-localhost,127.0.0.1}
+    volumes:
+      - ./app.py:/app/app.py:ro
+      - ./pptx_preview.py:/app/pptx_preview.py:ro
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+      - ./library:/library:ro
+      - ./secrets:/secrets:ro
+      - ./state:/state
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    networks: [slides]
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+networks:
+  slides: {}
