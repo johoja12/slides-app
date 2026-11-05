@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
 
-from flask import Response, abort, g, redirect, render_template, request, send_file, session, url_for
+from flask import Response, abort, g, redirect, request, send_file, session, url_for
 import library_store as store
 import slide_content
 
@@ -146,13 +146,13 @@ def register(namespace):
             for file in files:
                 file['url'] = url_for('deck', name=name, revision=rid, filename=file['name'])
             revisions.append(dict(id=rid, created=datetime.fromtimestamp(created, timezone.utc).isoformat(), modified=datetime.fromtimestamp(modified, timezone.utc).isoformat(), files=files))
-        return render_template('history.html', entry=value, revisions=revisions, selected=selected, live=(h.ROOT/name).is_dir())
+        return h.ui_page('history', entry=value, revisions=revisions, selected=selected, live=(h.ROOT/name).is_dir())
 
     @app.route('/upload', methods=['GET', 'POST'])
     def upload():
         values = entries()
         if request.method == 'GET':
-            return render_template('upload.html', entries=values.values())
+            return h.ui_page('upload', entries=list(values.values()),deck=request.args.get('deck',''))
         h.require_csrf()
         name = request.form.get('name', '')
         if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,79}', name):
@@ -322,7 +322,7 @@ def register(namespace):
                     results.append(dict(title=values[name]['title'],filename=filename,page=slide,snippet=snippet,url=url_for(endpoint,name=name,filename=filename,**kwargs)+('#page='+str(slide) if filename.lower().endswith('.pdf') else '#'+str(slide))))
         with h.db() as conn:
             all_tags = sorted({tag for name,tag in conn.execute('SELECT deck,tag FROM deck_tags') if name in values})
-        return render_template('search.html',query=query,results=results,total=total,page=page,pending=pending,tags=tags,all_tags=all_tags,favorites=favorites)
+        return h.ui_page('search',query=query,results=results,total=total,page=page,pending=pending,tags=tags,all_tags=all_tags,favorites=favorites)
 
     @app.route('/presenter/<name>/<path:filename>', methods=['GET','POST'], endpoint='presenter')
     @app.route('/r/<int:revision>/presenter/<name>/<path:filename>', methods=['GET','POST'], endpoint='presenter')
@@ -347,6 +347,6 @@ def register(namespace):
         supported = path.suffix.lower()=='.pptx' or all(word in path.read_text(errors='replace') for word in ('const slides = []','function go(','function fit('))
         audience = url_for('viewer',name=name,filename=filename,revision=revision) if revision else url_for('viewer',name=name,filename=filename)
         source = url_for('pptx_player',name=name,filename=filename) if path.suffix.lower()=='.pptx' else url_for('deck',name=name,filename=filename,embedded='1')
-        return render_template('presenter.html',entry=value,filename=filename,notes=row[0] if row else '',channel=channel,supported=supported,audience=audience,source=source)
+        return h.ui_page('presenter',entry=value,filename=filename,notes=row[0] if row else '',channel=channel,supported=supported,audience=audience,source=source)
 
     namespace.update(checkpoint=checkpoint, observe_share=observe_share, enrich_index=enrich_index)

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% block title %}{{ title }} · Slides{% endblock %}{% block body %}
+{% for stylesheet in styles %}<link rel="stylesheet" href="{{ stylesheet }}">{% endfor %}
+<div id="app" data-page="{{ page }}"><header class="top"><a class="brand" href="/">Slides</a></header><h1>{{ title }}</h1><p role="status">Loading application…</p><noscript><p>Enable JavaScript to use the application controls. Presentation downloads and public links remain available directly.</p></noscript>
+{% if page=='shares' and data.link %}<input id="share-link" readonly value="{{ data.link }}" aria-label="Share URL">{% endif %}
+{% if page=='search' %}<p>{{ data.total }} matching slide/page results</p>{% for result in data.results %}<article class="card search-result"><a href="{{ result.url }}">{{ result.title }}</a><p>{{ result.snippet }}</p></article>{% endfor %}{% endif %}
+</div>
+<script id="ui-bootstrap" type="application/json">{{ {'page':page,'csrf':session.csrf,'data':data}|tojson }}</script>
+<script type="module" src="{{ script }}"></script>
+{% endblock %}

@@ -105,6 +105,22 @@ def headers(response):
     return response
 
 
+def ui_page(screen, **data):
+    """Private page data is encoded as JSON, never compiled as a Vue template."""
+    if request.accept_mimetypes.best == 'application/json':
+        return data
+    manifest_path=Path(__file__).parent/'static/ui/.vite/manifest.json'
+    try:
+        manifest=json.loads(manifest_path.read_text())
+        entry=manifest['frontend/main.ts']
+        script=url_for('static',filename='ui/'+entry['file'])
+        styles=[url_for('static',filename='ui/'+filename) for filename in entry.get('css',[])]
+    except (OSError,ValueError,KeyError,TypeError):
+        abort(503,description='The application frontend is unavailable.')
+    titles={'library':'Slide library','upload':'Add a presentation','history':'Version history','shares':'Share links','search':'Search inside slides','viewer':data.get('title','Presentation'),'presenter':'Presenter tools'}
+    return render_template('ui.html',page=screen,data=data,title=titles[screen],script=script,styles=styles)
+
+
 @app.route('/login', methods=['GET','POST'])
 def login():
     if logged_in():
@@ -268,7 +284,7 @@ def index():
     for entry in entries:
         entry['favorite'],entry['pinned']=preferences.get(entry['name'],(0,0))
     all_tags=enrich_index(entries)
-    return render_template('index.html', entries=entries, count=len(entries),all_tags=all_tags)
+    return ui_page('library', entries=entries, count=len(entries),all_tags=all_tags)
 
 
 @app.post('/preferences/<name>')
@@ -356,7 +372,7 @@ def shares():
             conn.execute('UPDATE shares SET token=?,copy_token_hash=? WHERE id=?',
                 (token_hash(token),token_hash(token),result.lastrowid))
         link=PUBLIC_ORIGIN+url_for('shared',token=token)
-    return render_template('shares.html', rows=share_rows(), link=link)
+    return ui_page('shares', rows=share_rows(), link=link)
 
 
 @app.post('/shares/<int:share_id>/revoke')
@@ -574,7 +590,10 @@ def deck_view(entry,filename,token=None):
         source=url_for('shared_pptx',token=token,filename=filename,embedded='1') if filename.lower().endswith('.pptx') else url_for('shared_file',token=token,filename=filename,embedded='1')
     else:
         source=url_for('pptx_player',name=name,filename=filename) if filename.lower().endswith('.pptx') else url_for('deck',name=name,filename=filename,embedded='1')
-    return render_template('viewer.html',name=name,filename=filename,revision=getattr(g,'revision',None),title=entry['title'],source=source,formats=linked_formats(entry,filename,token),active_format='pptx' if filename.lower().endswith('.pptx') else 'html',shared=bool(token))
+    values=dict(name=name,filename=filename,revision=getattr(g,'revision',None),title=entry['title'],source=source,formats=linked_formats(entry,filename,token),active_format='pptx' if filename.lower().endswith('.pptx') else 'html')
+    if token:
+        return render_template('viewer.html',shared=True,**values)
+    return ui_page('viewer',presenter_url=url_for('presenter',name=name,filename=filename),**values)
 
 
 @app.get('/s/<token>/_view/<path:filename>')
@@ -649,6 +668,8 @@ def friendly_error(error):
         heading='Page not found'
         message='This page may have moved, or the address may be incorrect.'
         detail='Check the address, or return to the slide library.'
+    if request.accept_mimetypes.best == 'application/json':
+        return {'error':message+' '+detail},code
     return render_template('error.html',heading=heading,message=message,detail=detail,error_code=code),code
 
 

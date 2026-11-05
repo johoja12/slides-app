@@ -207,3 +207,27 @@ print(f'{checks} additional feature checks passed, including fixed asset scope, 
 check(upload('large-safe',[(BytesIO(b'<h1>Large synthetic HTML</h1>'+b' '*40000),'index.html')]).status_code==200)
 check(post(notes_url,notes='ا'*12000).status_code==200)
 print(f'{checks} additional feature checks passed, including upload/form limits and Unicode notes')
+
+# Private Vue bootstrap/API boundaries and inert user-controlled metadata.
+api_headers={'Accept':'application/json'}
+for endpoint in ('/','/upload','/shares','/history/content','/search?q=Orbital','/presenter/content/index.html','/view/content/index.html'):
+    check(guest.get(endpoint,base_url=origin,headers=api_headers).status_code==302)
+    response=c.get(endpoint,base_url=origin,headers=api_headers)
+    check(response.status_code==200 and response.is_json)
+check(c.post('/tags/content',base_url=origin,headers=api_headers,data={'tags':'no-csrf'}).status_code==400)
+response=c.post('/tags/content',base_url=origin,headers=api_headers,data={'tags':'no-csrf'})
+check(response.is_json and 'error' in response.json)
+response=guest.get(fixed,base_url=origin,headers=api_headers,follow_redirects=True)
+check(response.status_code==200 and b'ui-bootstrap' not in response.data and b'/static/ui/' not in response.data)
+response=c.get('/',base_url=origin)
+bootstrap=json.loads(re.search(rb'<script id="ui-bootstrap" type="application/json">(.*?)</script>',response.data,re.S).group(1))
+check(bootstrap['page']=='library' and bootstrap['csrf']==csrf and isinstance(bootstrap['data']['entries'],list))
+asset=re.search(rb'<script type="module" src="([^"]+)"',response.data).group(1).decode()
+check(c.get(asset,base_url=origin).status_code==200)
+check(guest.get(asset,base_url=origin).status_code==302)
+malicious='</script><script>globalThis.privateLeakSentinel=1</script>'
+(root/'demo/metadata.json').write_text(json.dumps({'title':malicious}))
+response=c.get('/',base_url=origin)
+check(malicious.encode() not in response.data and b'\\u003c/script\\u003e' in response.data)
+check(b'privateLeakSentinel' not in c.get(asset,base_url=origin).data)
+print(f'{checks} additional feature checks passed, including Vue API authorization, CSRF, private bootstrap isolation and inert metadata encoding')

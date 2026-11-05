@@ -130,8 +130,8 @@ print(f'{checks} total checks passed, including PPTX preview/download, cache inv
 with mod.app.test_request_context('/'):
  entry=next(e for e in mod.catalog() if e['name']=='demo')
  check(entry['linked_formats'] and entry['format_files']['pptx']=='sample.pptx')
-r=c.get('/view/demo/index.html',base_url=origin);check(b'aria-label="Presentation format"' in r.data and b'Download PPTX' in r.data)
-r=c.get('/view/demo/sample.pptx',base_url=origin);check(b'aria-current="page">PowerPoint' in r.data)
+r=c.get('/view/demo/index.html',base_url=origin,headers={'Accept':'application/json'});check(r.json['formats']['download_pptx']=='/decks/demo/sample.pptx' and r.json['active_format']=='html')
+r=c.get('/view/demo/sample.pptx',base_url=origin,headers={'Accept':'application/json'});check(r.json['active_format']=='pptx' and r.json['source']=='/pptx/demo/sample.pptx')
 r=c.post('/shares',base_url=origin,data={'csrf':csrf,'deck':'demo','days':'7'})
 link=re.search(rb'id="share-link" readonly value="([^"]+)"',r.data).group(1).decode();share_path=__import__('urllib.parse',fromlist=['urlsplit']).urlsplit(link).path
 r=guest.get(share_path,base_url=origin,follow_redirects=True)
@@ -230,7 +230,7 @@ for field in ['favorite','pinned','favorite']:
  check(response.status_code==200 and response.json=={field:True})
 with mod.db() as conn:
  check(conn.execute('SELECT favorite,pinned FROM deck_preferences WHERE deck=?',('demo',)).fetchone()==(1,1))
-check(b'data-favorite="1" data-pinned="1"' in c.get('/',base_url=origin).data)
+preferences=c.get('/',base_url=origin,headers={'Accept':'application/json'}).json['entries'];check(any(e['name']=='demo' and e['favorite']==1 and e['pinned']==1 for e in preferences))
 check(c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':'favorite','value':'0'}).json=={'favorite':False})
 with mod.db() as conn:
  check(conn.execute('SELECT favorite,pinned FROM deck_preferences WHERE deck=?',('demo',)).fetchone()==(0,1))
@@ -238,7 +238,7 @@ check((root/'demo/index.html').read_bytes()==original and mod.deck_modified(root
 # Preferences use folder identity; removed folders are hidden and renames start fresh.
 (root/'demo').rename(root/'renamed-demo')
 check(c.post(preference_url,base_url=origin,data={'csrf':csrf,'field':'favorite','value':'1'}).status_code==404)
-check(b'data-favorite="0" data-pinned="0"' in c.get('/',base_url=origin).data)
+preferences=c.get('/',base_url=origin,headers={'Accept':'application/json'}).json['entries'];check(any(e['name']=='renamed-demo' and e['favorite']==0 and e['pinned']==0 for e in preferences))
 (root/'renamed-demo').rename(root/'demo')
 # Anonymous share views never include library preferences or controls.
 share_token=secrets.token_urlsafe(32)

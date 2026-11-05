@@ -24,11 +24,15 @@ This is the authoritative source checkout for the private slide library. It was 
 
 - Use semantic HTML5 with polished, deliberately styled controls that fit the app's visual design. Avoid unstyled browser-default boxes, dropdowns and widgets in user-facing flows.
 - Prefer clear button groups, segmented controls and thoughtfully designed forms. Preserve native semantics, keyboard operation, visible focus, accessible names and selected/pressed states.
+- Authenticated screens use Vue 3 + TypeScript components in `frontend/`. Keep state and interactions in Vue; use shared UI primitives and typed request/channel helpers. Do not restore inline imperative page scripts. Keep anonymous presentation shells independent of private bootstrap data.
 - Design for desktop and mobile with comfortable touch targets, useful empty/loading/error states and reduced-motion support. Verify changed controls in a real browser at both sizes.
 
 ## Validation commands
 
 ```bash
+npm ci --include=dev
+npm run format:check
+npm run build
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python verify_features.py

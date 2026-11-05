@@ -14,3 +14,5 @@ The roadmap is implemented. GitHub issues hold the original acceptance criteria;
 | 8 | [Presenter view](https://github.com/johoja12/slides-app/issues/8) | Keep notes, timing and next-slide previews private to the presenter. |
 
 Existing source files, authentication, share scopes, original downloads and read-only library access must remain protected. Changes that require writable originals or new data storage need an explicit design in the relevant issue.
+
+The authenticated UI is now maintained as Vue 3/TypeScript components with a locked Vite build; see [frontend migration issue #9](https://github.com/johoja12/slides-app/issues/9) and the frontend development section in README.md. Public presentation URLs and the Flask/SQLite backend remain stable.

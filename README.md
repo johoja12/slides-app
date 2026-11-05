@@ -126,3 +126,33 @@ docker run --rm --network none --read-only --memory 1g --cpus 2 \
 ```
 
 The application image and read-only mounts include `library_store.py`, `library_features.py` and `slide_content.py`. When upgrading an existing Compose installation, add these module mounts from the example (or rebuild the image) and recreate only the library service. Preserve the installation's origin/trusted hosts, state, secrets, presentation and Caddy mounts. Back up the SQLite database and existing source before deploying additive migrations; do not reset runtime state.
+
+## Frontend development
+
+The authenticated library, uploads, version history, content search, share management, private viewer and presenter tools use **Vue 3 + TypeScript**, compiled with **Vite**. Flask still owns routing, authorization, CSRF, files, conversion and SQLite. These are Vue components mounted into existing server routes; bookmarks, public links and browser navigation keep their URLs. Login, error pages, anonymous share shells and presentation-format adapters remain independent of the private UI.
+
+Use Node 24 (the build image is pinned) or a compatible Node version satisfying `package.json`:
+
+```bash
+npm ci --include=dev
+npm run format:check      # consistent component/source formatting
+npm run build             # strict Vue/TypeScript checks and production assets
+npm run dev               # rebuild assets on source changes for a local backend
+```
+
+Components live in `frontend/pages/` and `frontend/components/`; shared request, preference and presentation-channel logic lives in `frontend/composables/`. The reusable controls provide consistent touch targets, focus states, pressed states, modal focus management and loading/error feedback. State belongs to Vue components; do not add imperative page scripts back into Jinja templates.
+
+Vite writes hashed JS/CSS and a manifest to `static/ui/`, which is generated and ignored by Git. Flask reads that manifest and serves assets locally. No CDN, production Node service, client-side router or additional database is required. The Docker multi-stage build installs the locked frontend dependencies, runs the type checker/build and copies only compiled assets into the Python runtime image. The Docker context explicitly excludes runtime data and includes the frontend sources and application modules.
+
+Private page data is JSON-encoded into an authenticated bootstrap; it is never interpreted as a Vue template or inserted as raw HTML. Authenticated page routes also return their existing page data when requested with `Accept: application/json`, letting Vue reuse current mutation endpoints and CSRF checks. Anonymous presentation responses do not contain the private bootstrap or load the application bundle. Presenter channels transmit only primitive slide positions/counts, never notes.
+
+Build before running the existing fixture tests:
+
+```bash
+npm ci --include=dev
+npm run build
+.venv/bin/python verify_features.py
+.venv/bin/python verify_ui.py
+```
+
+For mounted-source deployments, run the production build before copying source. Publish the new hashed assets **before** changing templates/source, retain previous hashed assets for already-open tabs, and publish the manifest with the matching release. Reload only the application workers after the files are ready. Back up current application files and the manifest first; rollback restores the matching source/templates/manifest while retaining both asset generations. This migration does not require a database migration, credential rotation or runtime-state reset.
