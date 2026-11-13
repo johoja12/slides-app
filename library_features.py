@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from flask import Response, abort, g, redirect, request, send_file, session, url_for
 import library_store as store
 import slide_content
+import pptx_motion
 
 
 def register(namespace):
@@ -352,5 +353,66 @@ def register(namespace):
         audience = url_for('viewer',name=name,filename=filename,revision=revision) if revision else url_for('viewer',name=name,filename=filename)
         source = url_for('pptx_player',name=name,filename=filename) if path.suffix.lower()=='.pptx' else url_for('deck',name=name,filename=filename,embedded='1')
         return h.ui_page('presenter',entry=value,filename=filename,notes=row[0] if row else '',channel=channel,supported=supported,audience=audience,source=source)
+
+    @app.route('/motion/<name>/<path:filename>', methods=['GET','POST'], endpoint='motion')
+    @app.route('/r/<int:revision>/motion/<name>/<path:filename>', methods=['GET','POST'], endpoint='motion')
+    def motion(name, filename, revision=None):
+        if request.method=='POST':h.require_csrf()
+        value=entry(name)
+        if filename not in {file['name'] for file in value['files'] if file['format']=='PPTX'}:abort(404)
+        source=h.pptx_source(name,filename)
+        try:
+            doc=pptx_motion.Document(source)
+            html_file=value['format_files'].get('html') if value['format_files'].get('pptx')==filename else None
+            html_sha=''
+            imported={'version':1,'source_sha256':doc.sha256,'steps':[],'replace_existing':False}
+            issues=[];warnings=[]
+            if html_file:
+                html_source=h.safe_file(name+'/'+html_file)
+                if html_source.stat().st_size>pptx_motion.XML_LIMIT:raise pptx_motion.MotionError('Linked HTML instructions exceed 8 MB.')
+                raw=html_source.read_bytes()
+                html_sha=hashlib.sha256(raw).hexdigest()
+                imported,issues,warnings=pptx_motion.from_html(raw.decode('utf-8'),doc)
+            else:warnings=['No linked HTML source is available. Map native PPTX objects below or import a plan from the static exporter.']
+            identity=hashlib.sha256(json.dumps([name,filename,doc.sha256,html_sha]).encode()).hexdigest()
+            plans=h.STATE/'motion-plans'
+            saved=plans/(identity+'.json')
+            if request.method=='GET':
+                plan=imported if not issues else {'version':1,'source_sha256':doc.sha256,'steps':[],'replace_existing':False}
+                if saved.is_file() and not saved.is_symlink():
+                    try:plan=pptx_motion.validate(doc,json.loads(saved.read_text()))
+                    except (ValueError,pptx_motion.MotionError):warnings.append('The saved plan could not be loaded; source instructions are shown instead.')
+                return {**doc.inventory(),'html_sha256':html_sha,'plan':plan,'import_issues':issues,'warnings':warnings,'effects':list(pptx_motion.EFFECTS)}
+            if request.form.get('html_sha256','')!=html_sha:abort(409,description='The HTML source changed. Reload its animation instructions before exporting.')
+            raw=request.form.get('plan','')
+            if len(raw.encode())>512*1024:abort(422,description='Animation plans are limited to 512 KB.')
+            plan=pptx_motion.validate(doc,json.loads(raw))
+            directory=h.STATE/'motion'
+            directory.mkdir(parents=True,exist_ok=True)
+            import fcntl,os
+            with (directory/'export.lock').open('a') as lock:
+                try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                except BlockingIOError:abort(409,description='Another animated export is running. Please retry shortly.')
+                digest=hashlib.sha256(json.dumps([pptx_motion.VERSION,doc.sha256,plan],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+                output=directory/(digest+'.pptx')
+                if not output.is_file():pptx_motion.apply(source,output,plan)
+                # Cache hits must also reject a concurrently replaced source.
+                if hashlib.sha256(source.read_bytes()).hexdigest()!=doc.sha256:abort(409,description='The PPTX source changed. Reload before exporting.')
+                if html_file and hashlib.sha256(html_source.read_bytes()).hexdigest()!=html_sha:abort(409,description='The HTML source changed. Reload before exporting.')
+                plans.mkdir(parents=True,exist_ok=True)
+                handle,temp=tempfile.mkstemp(prefix='plan-',dir=plans)
+                try:
+                    with os.fdopen(handle,'w') as target:json.dump(plan,target)
+                    os.replace(temp,saved)
+                finally:
+                    if os.path.exists(temp):os.unlink(temp)
+                # Derived exports are disposable; originals and revisions are never pruned.
+                cached=sorted(directory.glob('*.pptx'),key=lambda file:file.stat().st_mtime,reverse=True)
+                for stale in cached[32:]:
+                    if stale!=output and not stale.is_symlink():stale.unlink()
+                return send_file(output,as_attachment=True,download_name=Path(filename).stem+'-animated.pptx',mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',conditional=False)
+        except pptx_motion.MotionError as error:
+            abort(422,description=str(error))
+        except (ValueError,UnicodeError,RecursionError):abort(422,description='The animation instructions must be valid UTF-8 JSON or supported HTML annotations.')
 
     namespace.update(checkpoint=checkpoint, observe_share=observe_share, enrich_index=enrich_index)

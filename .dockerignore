@@ -6,6 +6,9 @@
 !library_store.py
 !library_features.py
 !slide_content.py
+!pptx_motion.py
+!third_party/
+!third_party/**
 !templates/
 !templates/**
 !static/

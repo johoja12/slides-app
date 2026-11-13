@@ -7,6 +7,7 @@ import tempfile
 import time
 
 import library_store
+import pptx_motion
 import pptx_preview
 import slide_content
 
@@ -45,4 +46,22 @@ with tempfile.TemporaryDirectory(prefix='slides-render-') as temporary:
     data=pdf.read_bytes();pdf.write_bytes(data.replace(b'PDF-',b'PDF_',1));os.utime(pdf,ns=(pdf.stat().st_atime_ns,pdf.stat().st_mtime_ns-1))
     assert pptx_preview.cache_dir(pdf)!=old_cache
     assert pptx.read_bytes()==original and pptx.stat().st_mtime_ns==modified
+    # Native timing must remain a readable package for the real preview converter.
+    document=pptx_motion.Document(pptx)
+    effects=('appear','disappear','fade-in','fade-out','wipe-in','fly-in','zoom-in','move','scale')
+    steps=[]
+    sid=document.slides[0]['shapes'][0]['id']
+    for effect in effects:
+        step={'slide':1,'target':{'id':sid},'effect':effect,'trigger':'click'}
+        if effect=='move':step['path']=[[0,0],[.2,.1]]
+        if effect=='scale':step['scale']=[1.5,1.5]
+        steps.append(step)
+    animated=work/'animated.pptx'
+    pptx_motion.apply(pptx,animated,{'version':1,'source_sha256':document.sha256,'steps':steps})
+    result=pptx_preview.status(animated);deadline=time.monotonic()+90
+    while result['status']=='processing' and time.monotonic()<deadline:
+        time.sleep(.25);result=pptx_preview.status(animated)
+    assert result['status']=='ready' and result['pages']==2,result
+    assert pptx.read_bytes()==original and pptx.stat().st_mtime_ns==modified
+    print('Native timing package opens in LibreOffice and renders two static preview pages; this is not PowerPoint playback proof')
     print('Real rendering passed: 2-slide PPTX conversion, PDF/PPTX text and page pointers, upload validation, both thumbnails, invalidation and unchanged original')

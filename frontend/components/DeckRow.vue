@@ -11,6 +11,7 @@ import {
 } from "../composables/api";
 import DeckPreview from "./DeckPreview.vue";
 import ShareComposer from "./ShareComposer.vue";
+import AnimatedPptx from "./AnimatedPptx.vue";
 import UiButton from "./UiButton.vue";
 import UiField from "./UiField.vue";
 const props = defineProps<{ deck: LibraryDeck; visible: boolean }>();
@@ -201,6 +202,14 @@ async function saveTags() {
           >
         </div></template
       >
+      <div class="animated-exports">
+        <AnimatedPptx
+          v-for="file in deck.files.filter((file) => file.format === 'PPTX')"
+          :key="file.name"
+          :name="deck.name"
+          :filename="file.name"
+        />
+      </div>
       <ShareComposer :deck="deck.name" />
     </div>
   </details>

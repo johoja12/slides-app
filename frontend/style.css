@@ -994,3 +994,120 @@ td .row-action {
   overscroll-behavior: contain;
   padding-right: 4px;
 }
+
+.ui-dialog.wide {
+  width: min(1050px, calc(100% - 28px));
+}
+.animated-exports,
+.motion-slides {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.motion-slides {
+  max-height: 140px;
+  overflow: auto;
+  margin-bottom: 20px;
+}
+.motion-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 20px;
+}
+.motion-workspace h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.motion-workspace .muted {
+  font-size: 12px;
+}
+.motion-object-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  max-height: 50dvh;
+  overflow: auto;
+}
+.motion-object-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.motion-object-list li > div {
+  min-width: 0;
+}
+.motion-object-list strong,
+.motion-object-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.motion-object-list small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.motion-step-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 60dvh;
+  overflow: auto;
+}
+.motion-step {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0e1a2a;
+}
+.motion-step > strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.motion-step .ui-options {
+  margin: 10px 0;
+}
+.motion-step .ui-button {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.motion-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.motion-replace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.motion-manifest {
+  margin-top: 16px;
+}
+.motion-manifest textarea {
+  font: 12px/1.5 monospace;
+}
+.motion-source-notes {
+  margin-bottom: 16px;
+}
+.motion-issue {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .motion-workspace {
+    grid-template-columns: 1fr;
+  }
+  .motion-object-list {
+    max-height: 28dvh;
+  }
+  .motion-step-list {
+    max-height: 50dvh;
+  }
+}

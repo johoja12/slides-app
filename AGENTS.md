@@ -16,6 +16,7 @@ This is the authoritative source checkout for the private slide library. It was 
 - Public token links grant access to one deck only, never the catalog or neighboring decks. Check expiry/revocation on every asset/preview request.
 - Preserve existing share-copy secrets, token hashes, old share URLs and additive SQLite migrations. Never log bearer URLs, passwords or cookies.
 - Keep CSRF, login throttling, secure cookies, traversal/symlink rejection and friendly status-preserving error pages intact.
+- Native animation export must retain existing editable objects, validate explicit slide/shape bindings and save a separate derivative. Never imply that static previews prove PowerPoint animation playback or that arbitrary canvas/JavaScript timelines are inferred.
 - Library originals stay read-only; generated previews belong in the state/cache directory. Do not execute presentation scripts during file inspection or server-side conversion.
 - Use existing modification timestamps, not metadata rewrite or upload times, for date sorting. Preserve search filtering and expanded folders when sorting.
 - Changes to copied public/proxy error pages must stay consistent with application errors; proxy examples must not introduce bearer-URL access logs.
@@ -36,8 +37,9 @@ npm run build
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python verify_features.py
+.venv/bin/python verify_motion.py
 .venv/bin/python verify_ui.py
-.venv/bin/python -m py_compile app.py pptx_preview.py library_store.py library_features.py slide_content.py set-password.py refresh-thumbnails.py
+.venv/bin/python -m py_compile app.py pptx_preview.py library_store.py library_features.py slide_content.py pptx_motion.py set-password.py refresh-thumbnails.py
 # Validate Compose without printing any resolved secrets:
 docker compose --env-file .env.example config --quiet
 ```

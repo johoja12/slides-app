@@ -112,3 +112,38 @@ export interface Bootstrap {
   csrf: string;
   data: Record<string, unknown>;
 }
+
+export interface MotionShape {
+  id: number;
+  name: string;
+  text: string;
+  type: string;
+  parent_id: number | null;
+  has_text: boolean;
+}
+export interface MotionStep {
+  slide: number;
+  target: { id: number } | { name: string } | { text: string };
+  effect: string;
+  trigger: "click" | "with" | "after";
+  duration_ms: number;
+  delay_ms: number;
+  path?: number[][];
+  scale?: number[];
+  direction?: string;
+}
+export interface MotionPlan {
+  version: 1;
+  source_sha256: string;
+  replace_existing: boolean;
+  steps: MotionStep[];
+}
+export interface MotionData {
+  source_sha256: string;
+  html_sha256: string;
+  slides: { number: number; has_animation: boolean; shapes: MotionShape[] }[];
+  plan: MotionPlan;
+  effects: string[];
+  import_issues: string[];
+  warnings: string[];
+}

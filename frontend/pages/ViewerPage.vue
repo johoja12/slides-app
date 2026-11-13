@@ -7,6 +7,7 @@ import {
 } from "../composables/presentation";
 import type { Position } from "../composables/presentation";
 import ShareComposer from "../components/ShareComposer.vue";
+import AnimatedPptx from "../components/AnimatedPptx.vue";
 import UiButton from "../components/UiButton.vue";
 import UiDialog from "../components/UiDialog.vue";
 const props = defineProps<{ data: ViewerData }>();
@@ -133,6 +134,12 @@ onBeforeUnmount(() => {
           >Download PPTX ↓</a
         >
       </div>
+      <AnimatedPptx
+        v-if="data.active_format === 'pptx'"
+        :name="data.name"
+        :filename="data.filename"
+        :revision="data.revision"
+      />
       <a id="presenter-link" :href="presenterURL" @click="openPresenter"
         >Presenter tools ↗</a
       ><UiButton id="open-share" @click="sharing = true">Share</UiButton>

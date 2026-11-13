@@ -9,6 +9,7 @@ import tempfile
 import threading
 
 from playwright.sync_api import sync_playwright, expect
+from verify_motion import make_pptx
 from werkzeug.security import generate_password_hash
 from werkzeug.serving import WSGIRequestHandler, make_server
 
@@ -284,6 +285,42 @@ with tempfile.TemporaryDirectory(prefix='slides-ui-') as temporary:
             presenter.locator('#open-audience').click()
             expect(presenter.locator('#connection')).to_contain_text('Popup blocked')
             presenter.close()
+            # Native animation editor: actual download, failure feedback, saved plans and mobile layout.
+            motion=root/'motion-fixture';motion.mkdir();source=make_pptx(motion/'demo.pptx')
+            original=(source.read_bytes(),source.stat().st_mtime_ns)
+            page.goto(origin)
+            row('Motion Fixture').locator('summary').click()
+            row('Motion Fixture').get_by_role('button',name='Animated PPTX').click()
+            dialog=page.get_by_role('dialog',name='Native PowerPoint animations')
+            expect(dialog.get_by_text('Editable objects · Slide 1')).to_be_visible()
+            dialog.get_by_role('button',name='Animate object 2 on slide 1',exact=True).click()
+            expect(dialog.get_by_text('Animation steps · 1')).to_be_visible()
+            dialog.get_by_role('button',name='Move path',exact=True).click()
+            dialog.get_by_label('Duration (ms)',exact=True).fill('900')
+            for width in (1440,390,320):
+                page.set_viewport_size({'width':width,'height':1000})
+                assert dialog.evaluate('(el)=>el.scrollWidth <= el.clientWidth'), 'Animation dialog overflow'
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            page.screenshot(path='/tmp/slides-motion-mobile.png')
+            page.set_viewport_size({'width':1440,'height':1000})
+            page.route('**/motion/motion-fixture/demo.pptx',lambda route:route.fulfill(status=422,content_type='application/json',body='{"error":"Synthetic validation failure"}'))
+            dialog.get_by_role('button',name='Download animated PowerPoint').click()
+            expect(dialog.get_by_role('status')).to_contain_text('Synthetic validation failure')
+            page.unroute('**/motion/motion-fixture/demo.pptx')
+            with page.expect_download() as pending:
+                dialog.get_by_role('button',name='Download animated PowerPoint').click()
+            downloaded=fixture/'downloaded.pptx';pending.value.save_as(downloaded)
+            import zipfile
+            with zipfile.ZipFile(downloaded) as archive:
+                assert b'animMotion' in archive.read('ppt/slides/slide2.xml')
+            expect(dialog.get_by_role('status')).to_contain_text('Plan saved separately')
+            page.screenshot(path='/tmp/slides-motion-desktop.png')
+            dialog.get_by_role('button',name='Close dialog').click()
+            row('Motion Fixture').get_by_role('button',name='Animated PPTX').click()
+            expect(dialog.get_by_text('Animation steps · 1')).to_be_visible()
+            expect(dialog.get_by_role('button',name='Move path',exact=True)).to_have_attribute('aria-pressed','true')
+            dialog.get_by_role('button',name='Close dialog').click()
+            assert (source.read_bytes(),source.stat().st_mtime_ns)==original
             assert not errors, errors
             context.close()
             browser.close()

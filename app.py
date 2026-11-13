@@ -77,7 +77,7 @@ def logged_in():
 
 @app.before_request
 def protect():
-    request.max_content_length=105*1024*1024 if request.endpoint=='upload' else 160000 if request.endpoint=='presenter' else 16384
+    request.max_content_length=105*1024*1024 if request.endpoint=='upload' else 1024*1024 if request.endpoint=='motion' else 160000 if request.endpoint=='presenter' else 16384
     g.revision = None
     g.revision_deck = None
     if request.routing_exception is not None and request.routing_exception.code==404:
@@ -215,7 +215,7 @@ def safe_file(relative):
 
 @app.url_defaults
 def revision_urls(endpoint, values):
-    if endpoint in ('deck','deck_index','viewer','pptx_player','pptx_data','thumbnail','presenter') and getattr(g,'revision',None) is not None and values.get('name')==g.revision_deck:
+    if endpoint in ('deck','deck_index','viewer','pptx_player','pptx_data','thumbnail','presenter','motion') and getattr(g,'revision',None) is not None and values.get('name')==g.revision_deck:
         values.setdefault('revision',g.revision)
 
 

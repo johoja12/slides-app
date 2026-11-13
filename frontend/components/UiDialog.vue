@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, useId, watch } from "vue";
 import UiButton from "./UiButton.vue";
 const props = defineProps<{
   open: boolean;
+  wide?: boolean;
   title: string;
   returnFocus?: HTMLElement;
 }>();
@@ -31,6 +32,7 @@ onBeforeUnmount(() => dialog.value?.close());
     ><dialog
       ref="dialog"
       class="ui-dialog"
+      :class="{ wide }"
       :aria-labelledby="id"
       @close="close"
       @cancel.prevent="emit('update:open', false)"
