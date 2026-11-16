@@ -50,6 +50,7 @@ function receive(event: MessageEvent) {
   const value = { ...event.data, type: "position" };
   if (validPosition(value)) {
     position.value = value;
+    syncHash();
     bus.send(value);
   }
 }

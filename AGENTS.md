@@ -26,7 +26,14 @@ This is the authoritative source checkout for the private slide library. It was 
 - Use semantic HTML5 with polished, deliberately styled controls that fit the app's visual design. Avoid unstyled browser-default boxes, dropdowns and widgets in user-facing flows.
 - Prefer clear button groups, segmented controls and thoughtfully designed forms. Preserve native semantics, keyboard operation, visible focus, accessible names and selected/pressed states.
 - Authenticated screens use Vue 3 + TypeScript components in `frontend/`. Keep state and interactions in Vue; use shared UI primitives and typed request/channel helpers. Do not restore inline imperative page scripts. Keep anonymous presentation shells independent of private bootstrap data.
+- The shared public player in `static/presentation-player.js` is independent of the private Vue bootstrap so authenticated and anonymous audiences use identical controls. Keep presentation adapters there; do not duplicate player UI in decks or Vue pages.
 - Design for desktop and mobile with comfortable touch targets, useful empty/loading/error states and reduced-motion support. Verify changed controls in a real browser at both sizes.
+
+## Slide authoring and player ownership
+
+- Every HTML/PPTX presentation uses the app-owned shared player. Do not create a separate Previous/Next bar, slide counter, thumbnail drawer, fullscreen handler or navigation keyboard/touch handlers inside a new deck.
+- Read `SLIDE_AUTHORING.md` when creating or updating slides. New animated decks expose `window.slidesDeck` version 1; slide index/count always describe presentation slides, with animation step/steps separate. Plain decks can use semantic `[data-slide]` sections.
+- Decks own content and animation hooks. The app owns accessible controls, responsive thumbnails, first/last jumps, key bindings, presentation position messages and fullscreen. Keep thumbnails revision/share scoped. Legacy adapters are compatibility paths, not templates for new players.
 
 ## Validation commands
 
@@ -39,6 +46,7 @@ python3 -m venv .venv
 .venv/bin/python verify_features.py
 .venv/bin/python verify_motion.py
 .venv/bin/python verify_ui.py
+.venv/bin/python verify_player.py
 .venv/bin/python -m py_compile app.py pptx_preview.py library_store.py library_features.py slide_content.py pptx_motion.py set-password.py refresh-thumbnails.py
 # Validate Compose without printing any resolved secrets:
 docker compose --env-file .env.example config --quiet

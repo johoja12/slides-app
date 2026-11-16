@@ -16,6 +16,7 @@ const currentFrame = ref<HTMLIFrameElement>(),
   index = ref(0),
   count = ref(0),
   lastSeen = ref(0),
+  popupBlocked = ref(false),
   connection = ref("Open the audience window and keep this window private."),
   notes = ref(props.data.notes),
   message = ref(""),
@@ -30,11 +31,13 @@ try {
 } catch {}
 const bus = usePresentationChannel(props.data.channel, (value) => {
   if (!validPosition(value)) return;
+  const changed = index.value !== value.index || count.value !== value.count;
   index.value = value.index;
   count.value = value.count;
   lastSeen.value = Date.now();
-  connection.value = "Audience connected. Notes are private to this window.";
-  previews();
+  if (!popupBlocked.value)
+    connection.value = "Audience connected. Notes are private to this window.";
+  if (changed) previews();
 });
 const activeNote = computed(() => notes.value.split("\n")[index.value] || "");
 const timer = computed(
@@ -60,6 +63,7 @@ function audience() {
   url.searchParams.set("channel", props.data.channel);
   url.searchParams.set("audience", "1");
   const opened = window.open(url, "slides-audience-" + props.data.channel);
+  popupBlocked.value = !opened;
   connection.value = opened
     ? "Waiting for audience…"
     : "Popup blocked. Allow popups for this site, then click Open audience again.";
@@ -105,7 +109,11 @@ onMounted(() => {
       "This browser does not support multi-window controls. Use the audience’s own navigation.";
   interval = setInterval(() => {
     elapsed.value = Math.floor((Date.now() - started) / 1000);
-    if (lastSeen.value && Date.now() - lastSeen.value > 7000)
+    if (
+      !popupBlocked.value &&
+      lastSeen.value &&
+      Date.now() - lastSeen.value > 7000
+    )
       connection.value = "Audience disconnected. Reopen it to reconnect.";
     bus.send({ type: "hello" });
   }, 1000);

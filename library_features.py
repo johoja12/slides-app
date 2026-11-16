@@ -349,7 +349,7 @@ def register(namespace):
         channel = request.args.get('channel','')
         if not re.fullmatch(r'[a-zA-Z0-9_-]{24,80}',channel):
             channel = secrets.token_urlsafe(24)
-        supported = path.suffix.lower()=='.pptx' or all(word in path.read_text(errors='replace') for word in ('const slides = []','function go(','function fit('))
+        supported = path.suffix.lower() in ('.html','.pptx')
         audience = url_for('viewer',name=name,filename=filename,revision=revision) if revision else url_for('viewer',name=name,filename=filename)
         source = url_for('pptx_player',name=name,filename=filename) if path.suffix.lower()=='.pptx' else url_for('deck',name=name,filename=filename,embedded='1')
         return h.ui_page('presenter',entry=value,filename=filename,notes=row[0] if row else '',channel=channel,supported=supported,audience=audience,source=source)

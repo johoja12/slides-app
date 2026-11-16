@@ -212,3 +212,14 @@ Limits include 100 MB PPTX, 300 MB expanded package, 500 slides, 20,000 total ob
 This implementation adapts the native timing-tree approach of [pptx-motion-lite](https://github.com/yinzige/pptx-motion-lite), under its [MIT license](third_party/pptx-motion-lite-LICENSE.txt). Research also reviewed [dom-to-pptx](https://github.com/atharva9167j/dom-to-pptx), which offers DOM/CSS animation export, and its [Reveal fragment fork](https://github.com/halobiron/dom-to-pptx). They are not runtime dependencies. The adapter follows [PresentationML animation structures](https://learn.microsoft.com/en-us/office/open-xml/presentation/working-with-animation); a postprocessor preserves compatibility with the existing external static exporter.
 
 For mounted deployments, add the `pptx_motion.py` read-only mount from `compose.yml`, copy the module alongside the other source files and recreate only the library service. Keep the installation's origin/trusted hosts and runtime volumes. New images include the module and its third-party license. Run `verify_motion.py`, the browser checks and the real rendering test above before deployment.
+
+
+## One shared presentation player
+
+The app injects the same player into every served HTML presentation and PowerPoint preview, including anonymous shares and historical revisions. **Slides** always opens the thumbnail picker on phones and desktops, with **First slide** and **Last slide** shortcuts. Previous/Next, slide totals, replay, animation playback, sources and fullscreen use one styled control set. Unsupported optional actions stay disabled. Native legacy navigation bars are hidden once their adapter is available; originals remain read-only.
+
+The main counter tracks presentation slides. Animation builds appear separately as steps; Next can reveal a build without changing the slide counter. Keyboard navigation runs once even when an older deck also registers key handlers. The same position contract supports private presenter tools without sending notes to audience windows.
+
+For new decks follow [SLIDE_AUTHORING.md](SLIDE_AUTHORING.md). Use the versioned `window.slidesDeck` content API or semantic `[data-slide]` sections; do not build another player into the presentation. Legacy canvas and policy-deck APIs remain supported. A plain HTML document has one page; unrecognized custom multi-slide engines need an adapter to expose their slide structure. The app cannot infer arbitrary navigation state from custom JavaScript.
+
+Run `.venv/bin/python verify_player.py` for synthetic browser checks covering all adapters, identical controls, animation/slide counters, small phones, landscape, desktop, thumbnail navigation, share revocation and unchanged originals.

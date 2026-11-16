@@ -486,7 +486,7 @@ def presentation_channel():
 @app.get('/assets/slide-navigation.js')
 def slide_navigation():
     # Public code only; thumbnails remain subject to private/deck-token access.
-    return send_file(Path(__file__).parent/'static/slide-navigation.js',mimetype='application/javascript')
+    return send_file(Path(__file__).parent/'static/presentation-player.js',mimetype='application/javascript')
 
 
 def presentation_file(path):
@@ -494,21 +494,16 @@ def presentation_file(path):
         return send_file(path,as_attachment=path.suffix.lower()=='.pptx',conditional=True)
     raw=path.read_bytes()
     html=raw.decode('utf-8')
-    # This adapter targets the canvas-based HyperDrive decks. Other deck types keep their player.
-    if 'const slides = []' in html and 'function go(' in html and 'function fit(' in html:
-        version=hashlib.sha256(raw).hexdigest()
-        manifest=path.parent/'navigation'/'thumbnails.json'
-        thumbnails=False
-        if manifest.is_file() and not manifest.is_symlink():
-            try: thumbnails=json.loads(manifest.read_text()).get('source_sha256')==version
-            except (OSError,ValueError): pass
-        script='<script src="'+url_for('slide_navigation')+'" data-thumbnails="'+('yes' if thumbnails else 'no')+'" data-version="'+version+'"></script>'
-        if '</body>' in html:
-            html=html.rsplit('</body>',1)[0]+script+'</body>'+html.rsplit('</body>',1)[1]
-        else:
-            html+=script
-    if 'const slides = []' in html and 'function go(' in html and 'function fit(' in html:
-        html+='<script src="'+url_for('presentation_channel')+'"></script>'
+    # The application always supplies player chrome; original bytes stay read-only.
+    version=hashlib.sha256(raw).hexdigest()
+    manifest=path.parent/'navigation'/'thumbnails.json'
+    thumbnails=False
+    if manifest.is_file() and not manifest.is_symlink():
+        try: thumbnails=json.loads(manifest.read_text()).get('source_sha256')==version
+        except (OSError,ValueError): pass
+    scripts='<script src="'+url_for('slide_navigation')+'" data-thumbnails="'+('yes' if thumbnails else 'no')+'" data-version="'+version+'"></script><script src="'+url_for('presentation_channel')+'"></script>'
+    if '</body>' in html:html=html.rsplit('</body>',1)[0]+scripts+'</body>'+html.rsplit('</body>',1)[1]
+    else:html+=scripts
     return Response(html,mimetype='text/html')
 
 
