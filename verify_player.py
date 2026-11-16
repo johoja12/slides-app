@@ -58,6 +58,7 @@ with tempfile.TemporaryDirectory(prefix='slides-player-') as temporary:
      toggle=player.get_by_role('button',name='Open slide thumbnails');toggle.click()
      dialog=player.get_by_role('dialog',name='Jump to slide');expect(dialog.locator('.card')).to_have_count(3)
      before=player.locator('.counter').text_content();page.keyboard.press('ArrowRight');expect(player.locator('.counter')).to_have_text(before)
+     assert dialog.locator('.picture').first.evaluate('(el)=>el.getBoundingClientRect().height / el.getBoundingClientRect().width > 0.5')
      dialog.get_by_role('button',name='Last slide',exact=False).click();expect(player.locator('.counter')).to_have_text('Slide 3 / 3')
      toggle.click();dialog.locator('.card').first.click();expect(player.locator('.counter')).to_have_text('Slide 1 / 3')
      toggle.click();page.keyboard.press('Escape');expect(toggle).to_be_focused()
