@@ -12,7 +12,8 @@ const csrf = useCsrf();
     <nav v-if="library" class="app-nav" aria-label="Library navigation">
       <a href="/search">Search slide content</a
       ><a class="ui-button outline" href="/upload">+ Upload</a
-      ><a href="/shares">Manage share links</a>
+      ><a href="/shares">Manage share links</a
+      ><a href="/help">Authoring help</a>
     </nav>
     <a v-else href="/">← Back to library</a>
     <form action="/logout" method="post">

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 import time
@@ -12,6 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 from flask import Response, Flask, abort, redirect, render_template, request, send_file, session, url_for, g
+from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash
 import pptx_preview
 import library_store
@@ -82,7 +84,7 @@ def protect():
     g.revision_deck = None
     if request.routing_exception is not None and request.routing_exception.code==404:
         return
-    if request.endpoint in ('login','health','shared','shared_file','slide_navigation','presentation_channel','shared_pptx','shared_pptx_data','shared_viewer','shared_thumbnail'):
+    if request.endpoint in ('login','health','authoring_help','authoring_guide','authoring_starter','shared','shared_file','slide_navigation','presentation_channel','shared_pptx','shared_pptx_data','shared_viewer','shared_thumbnail'):
         return
     if not logged_in():
         return redirect(url_for('login', next=safe_next(request.full_path.rstrip('?'))))
@@ -119,6 +121,57 @@ def ui_page(screen, **data):
         abort(503,description='The application frontend is unavailable.')
     titles={'library':'Slide library','upload':'Add a presentation','history':'Version history','shares':'Share links','search':'Search inside slides','viewer':data.get('title','Presentation'),'presenter':'Presenter tools'}
     return render_template('ui.html',page=screen,data=data,title=titles[screen],script=script,styles=styles)
+
+
+def authoring_source():
+    try:return (Path(__file__).parent/'SLIDE_AUTHORING.md').read_text(encoding='utf-8')
+    except OSError:abort(503,description='The authoring guide is temporarily unavailable.')
+
+
+def authoring_blocks(source):
+    """Render only headings, paragraphs and escaped code from the bundled guide."""
+    blocks=[];paragraph=[];code=None;language=''
+    def flush():
+        if paragraph:blocks.append({'kind':'paragraph','text':' '.join(paragraph)});paragraph.clear()
+    for line in source.splitlines():
+        if line.startswith('```'):
+            flush()
+            if code is None:code=[];language=line[3:].strip()
+            else:blocks.append({'kind':'code','text':'\n'.join(code),'language':language});code=None
+        elif code is not None:code.append(line)
+        elif line.startswith('# '):flush()  # The page already supplies its main heading.
+        elif re.match(r'^#{2,3} ',line):
+            flush();text=line.lstrip('# ').strip()
+            blocks.append({'kind':'heading','text':text,'id':re.sub(r'[^a-z0-9]+','-',text.casefold()).strip('-')})
+        elif not line.strip():flush()
+        else:paragraph.append(line)
+    flush()
+    if code is not None:blocks.append({'kind':'code','text':'\n'.join(code),'language':language})
+    return blocks
+
+
+def authoring_inline(text):
+    return Markup('').join(Markup('<code>')+escape(part[1:-1])+Markup('</code>') if part.startswith('`') and part.endswith('`') else escape(part) for part in re.split(r'(`[^`]+`)',text))
+
+
+@app.get('/help')
+def authoring_help():
+    source=authoring_source()
+    if request.accept_mimetypes.best=='text/markdown':response=Response(source,content_type='text/markdown; charset=utf-8')
+    else:response=Response(render_template('help.html',blocks=authoring_blocks(source),inline=authoring_inline,guide_url=PUBLIC_ORIGIN+'/help/authoring.md'),mimetype='text/html')
+    response.headers['Link']='<'+url_for('authoring_guide')+'>; rel="alternate"; type="text/markdown"'
+    response.vary.add('Accept')
+    return response
+
+
+@app.get('/help/authoring.md')
+def authoring_guide():
+    return Response(authoring_source(),content_type='text/markdown; charset=utf-8')
+
+
+@app.get('/help/starter.html')
+def authoring_starter():
+    return send_file(Path(__file__).parent/'static/help/starter.html',mimetype='text/html',as_attachment=True,download_name='slide-starter.html')
 
 
 @app.route('/login', methods=['GET','POST'])

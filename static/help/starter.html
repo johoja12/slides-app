@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shared player starter</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#102036;color:#edf3fb;font:18px/1.6 system-ui,sans-serif}main{overflow:auto;padding:clamp(24px,6vw,80px);display:flex;flex-direction:column;justify-content:center}h1{font-size:clamp(32px,7vw,70px);line-height:1.1;margin:0 0 24px}p{max-width:65ch;color:#b9ccdf;margin:0}small{color:#7de0ce;letter-spacing:1px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<main data-slides-stage id="content"></main>
+<script>
+// Content only. The slide library supplies navigation, thumbnails and fullscreen.
+const pages = [
+  {title:'Introduction',builds:['Your presentation starts here.','This second reveal stays on the same slide.']},
+  {title:'Results',builds:['Replace this example with your findings.','Keep the content API; let the app provide the player.']},
+];
+let index=0,step=0;
+const content=document.querySelector('#content');
+function render(){
+  const label=document.createElement('small');label.textContent='SHARED PLAYER STARTER';
+  const heading=document.createElement('h1');heading.textContent=pages[index].title;
+  const body=document.createElement('p');body.textContent=pages[index].builds[step];
+  content.replaceChildren(label,heading,body);
+  history.replaceState(null,'',`#${index+1}.${step}`);
+  dispatchEvent(new Event('slides-change'));
+}
+window.slidesDeck={
+  version:1,
+  titles:pages.map(page=>page.title),
+  // Optional: thumbnails:['assets/slide-1.png','assets/slide-2.png'],
+  getState:()=>({index,count:pages.length,step,steps:pages[index].builds.length}),
+  go(n){index=Math.max(0,Math.min(pages.length-1,n));step=0;render();},
+  next(){if(step<pages[index].builds.length-1)step++;else if(index<pages.length-1){index++;step=0;}render();},
+  previous(){if(step>0)step--;else if(index>0){index--;step=pages[index].builds.length-1;}render();},
+  replay(){step=0;render();},
+};
+const initial=location.hash.match(/^#(\d+)(?:\.(\d+))?$/);
+if(initial){index=Math.max(0,Math.min(pages.length-1,Number(initial[1])-1));step=Math.max(0,Math.min(pages[index].builds.length-1,Number(initial[2])||0));}
+render();
+</script>
+</body></html>

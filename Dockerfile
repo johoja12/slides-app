@@ -13,6 +13,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py pptx_preview.py library_store.py library_features.py slide_content.py pptx_motion.py .
+COPY SLIDE_AUTHORING.md .
 COPY third_party third_party
 COPY templates templates
 COPY static static

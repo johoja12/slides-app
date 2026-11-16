@@ -32,6 +32,7 @@ This is the authoritative source checkout for the private slide library. It was 
 ## Slide authoring and player ownership
 
 - Every HTML/PPTX presentation uses the app-owned shared player. Do not create a separate Previous/Next bar, slide counter, thumbnail drawer, fullscreen handler or navigation keyboard/touch handlers inside a new deck.
+- Keep the public `/help` page and `/help/authoring.md` backed by the bundled `SLIDE_AUTHORING.md`; include that file in images and mounted deployments. Help responses must never read private catalog, session or presenter data.
 - Read `SLIDE_AUTHORING.md` when creating or updating slides. New animated decks expose `window.slidesDeck` version 1; slide index/count always describe presentation slides, with animation step/steps separate. Plain decks can use semantic `[data-slide]` sections.
 - Decks own content and animation hooks. The app owns accessible controls, responsive thumbnails, first/last jumps, key bindings, presentation position messages and fullscreen. Keep thumbnails revision/share scoped. Legacy adapters are compatibility paths, not templates for new players.
 
@@ -47,6 +48,7 @@ python3 -m venv .venv
 .venv/bin/python verify_motion.py
 .venv/bin/python verify_ui.py
 .venv/bin/python verify_player.py
+.venv/bin/python verify_help.py
 .venv/bin/python -m py_compile app.py pptx_preview.py library_store.py library_features.py slide_content.py pptx_motion.py set-password.py refresh-thumbnails.py
 # Validate Compose without printing any resolved secrets:
 docker compose --env-file .env.example config --quiet

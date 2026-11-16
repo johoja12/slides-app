@@ -35,6 +35,7 @@ services:
       SLIDES_TRUSTED_HOSTS: ${SLIDES_TRUSTED_HOSTS:-localhost,127.0.0.1}
     volumes:
       - ./app.py:/app/app.py:ro
+      - ./SLIDE_AUTHORING.md:/app/SLIDE_AUTHORING.md:ro
       - ./pptx_preview.py:/app/pptx_preview.py:ro
       - ./library_store.py:/app/library_store.py:ro
       - ./library_features.py:/app/library_features.py:ro

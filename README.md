@@ -223,3 +223,10 @@ The main counter tracks presentation slides. Animation builds appear separately 
 For new decks follow [SLIDE_AUTHORING.md](SLIDE_AUTHORING.md). Use the versioned `window.slidesDeck` content API or semantic `[data-slide]` sections; do not build another player into the presentation. Legacy canvas and policy-deck APIs remain supported. A plain HTML document has one page; unrecognized custom multi-slide engines need an adapter to expose their slide structure. The app cannot infer arbitrary navigation state from custom JavaScript.
 
 Run `.venv/bin/python verify_player.py` for synthetic browser checks covering all adapters, identical controls, animation/slide counters, small phones, landscape, desktop, thumbnail navigation, share revocation and unchanged originals.
+
+
+## Public authoring help
+
+`/help` is a public, responsive guide to the shared player, slide authoring, animations and publishing. It includes instructions to give external apps/agents and a downloadable, working content-only starter. `/help/authoring.md` serves the canonical guide as plain Markdown; `/help` also accepts `Accept: text/markdown`. `/help/starter.html` downloads the HTML starter. These exact endpoints bypass login and never load the private catalog or frontend bootstrap. Library, upload, notes and share management remain authenticated.
+
+`SLIDE_AUTHORING.md` is the single source for the web guide and Markdown response. The Docker image includes it; mounted installations must add the read-only guide mount from `compose.yml` and recreate only the library service when upgrading. Preserve deployment settings and runtime volumes. Run `.venv/bin/python verify_help.py` for anonymous routing, privacy, escaped examples, the starter content API and desktop/mobile layout checks.

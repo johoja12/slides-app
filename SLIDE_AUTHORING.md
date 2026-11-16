@@ -62,3 +62,21 @@ Use plain-text titles and relative thumbnail paths. Keep thumbnails in the prese
 ## Existing decks
 
 The library adapts its legacy canvas `slides`/`idx`/`go` convention and the older `policyDeck` API to the same player. These adapters preserve existing animation behavior while hiding old controls. New decks must use the documented content API rather than copy legacy player code. Preserve original files and publish a new immutable revision when changing a presentation; private deck contents never belong in this public app repository.
+
+## Giving these rules to an app or agent
+
+Repository agents read `AGENTS.md`, which points to this guide. External tools do not discover repository instructions automatically. Give them the public `/help` page or the plain Markdown at `/help/authoring.md` as part of their task, system instructions or integration context. A working content-only starter is available at `/help/starter.html`.
+
+Tell the tool to create content for the app-owned shared player, expose `window.slidesDeck` version 1 for animations (or use `[data-slide]` sections), and omit custom navigation controls. Ask it to keep slide totals separate from animation steps and supply relative assets and thumbnails. Loading the deck in the app supplies the standard player; arbitrary JavaScript navigation cannot be inferred automatically.
+
+## Review and publishing
+
+Package the top-level HTML file with its relative images, styles, scripts and fonts. Bundle thumbnail images with the same presentation; the starter uses numbered cards until thumbnails are supplied. Preview through the app and check a small phone, landscape and desktop. Test Next through every animation build, previous/replay, first/last slide jumps, thumbnail selection and keyboard operation. Opening thumbnails must not advance the underlying presentation.
+
+Use the authenticated upload flow to create a deck or publish a new immutable revision. This public guide does not grant upload or library access. Keep earlier revisions and original files intact; never include private notes, credentials or account exports in a presentation bundle. Shared presentation downloads contain the original presentation content, so do not embed material that should remain private to the presenter.
+
+## HTML and PowerPoint animations
+
+The content API controls animation inside an HTML presentation. A PowerPoint preview in the library is static. Native PowerPoint animation export is a separate conversion step: it maps explicit animation instructions to existing editable PPTX objects and downloads a separate animated file. It cannot reconstruct independent objects from a flattened screenshot or infer arbitrary canvas/JavaScript motion.
+
+Use the Animated PPTX editor, HTML annotations or a versioned animation plan to bind effects to exact objects. Missing, ambiguous or stale mappings must be corrected before export. Keep the source PPTX unchanged and check the exported animation in desktop PowerPoint Slide Show; a static preview does not prove animation playback.
